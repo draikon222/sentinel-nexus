@@ -2,17 +2,18 @@ const axios = require('axios');
 const cron = require('node-cron');
 const http = require('http');
 
-http.createServer((req, res) => { res.end('Nexus Prime Active'); }).listen(process.env.PORT || 3000);
+// Păstrăm serviciul activ
+http.createServer((req, res) => { res.end('Nexus Active'); }).listen(process.env.PORT || 3000);
 
 cron.schedule('* * * * *', async () => {
     try {
         console.log("Nexus încearcă accesul universal...");
         
-        // Încercăm modelul "gemini-pro" pe versiunea stabilă v1, e cel mai puțin pretențios
+        // Folosim v1 și gemini-pro pentru compatibilitate maximă
         const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${process.env.API_KEY}`;
         
         const response = await axios.post(url, {
-            contents: [{ parts: [{ text: "Draikon, dă-mi o lecție scurtă de marketing." }] }]
+            contents: [{ parts: [{ text: "Dă-mi o strategie scurtă de marketing." }] }]
         });
         
         if (response.data.candidates) {
