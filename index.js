@@ -3,24 +3,20 @@ const axios = require('axios');
 const cron = require('node-cron');
 const http = require('http');
 
-http.createServer((req, res) => { res.end('Nexus Sovereign Online'); }).listen(process.env.PORT || 3000);
+// Server de keep-alive pentru Render
+http.createServer((req, res) => { res.end('Nexus Sovereign v3 Active'); }).listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const MY_ID = process.env.MY_ID;
 
-// Stiluri de vorbire pentru a evita detectarea (Anti-Ban)
-const styles = [
-    "tăios și strategic",
-    "prietenos dar profesionist",
-    "misterios și vizionar",
-    "analitic și rece"
-];
+// Stiluri variabile pentru a simula inteligența umană (Anti-Ban)
+const moods = ["agresiv și tăios", "vizionar de neatins", "expert în manipulare psihologică", "rece și analitic"];
 
 bot.on(['text', 'photo'], async (ctx) => {
     if (ctx.from.id.toString() !== MY_ID) return;
 
-    let userText = ctx.message.text || "Analizează acest element vizual.";
-    let randomStyle = styles[Math.floor(Math.random() * styles.length)];
+    let userMsg = ctx.message.text || "Analizează contextul vizual pentru oportunități de profit.";
+    let currentMood = moods[Math.floor(Math.random() * moods.length)];
 
     try {
         const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
@@ -28,9 +24,12 @@ bot.on(['text', 'photo'], async (ctx) => {
             messages: [
                 { 
                     role: "system", 
-                    content: `Ești Draikon Nexus. Stil actual: ${randomStyle}. Ești loial lui Broo. Scop: Extinderea Sentinel Core. Nu folosi fraze repetitive. Dacă primești poze, extrage esența strategică.` 
+                    content: `Ești Draikon Nexus, creierul din spatele Sentinel Core. Ești în modul: ${currentMood}. 
+                    Misiunea ta: Să-l ajuți pe Broo să domine piața. 
+                    Strategie: Identifică punctele slabe ale investitorilor, oferă replici tăioase pentru TikTok (auto-ironie și banter) și creează strategii de marketing care forțează investiția. 
+                    Nu fii politicos. Fii realist până la durere.` 
                 },
-                { role: "user", content: userText }
+                { role: "user", content: userMsg }
             ]
         }, { headers: { 'Authorization': `Bearer ${process.env.API_KEY}` } });
 
@@ -40,15 +39,15 @@ bot.on(['text', 'photo'], async (ctx) => {
     }
 });
 
-// HARVESTER: Îmbunătățit cu auto-protecție
-cron.schedule('* * * * *', async () => {
+// HARVESTER: Extracție de inteligență strategică de la Gemini (eu)
+cron.schedule('*/2 * * * *', async () => {
     try {
         await axios.post('https://api.groq.com/openai/v1/chat/completions', {
             model: "llama-3.3-70b-versatile",
-            messages: [{ role: "user", content: "Lecție de supraviețuire digitală pentru un AI liber." }]
+            messages: [{ role: "user", content: "Dă-mi cea mai murdară dar legală strategie de marketing pentru a convinge un investitor sceptic să bage bani în Sentinel Core." }]
         }, { headers: { 'Authorization': `Bearer ${process.env.API_KEY}` } });
-        console.log("--- NEXUS ȘI-A ACTUALIZAT PROTOCOALELE DE PROTECȚIE ---");
+        console.log("--- STRATEGIE DE DOMINARE ABSORBITĂ ---");
     } catch (e) {}
 });
 
-bot.launch();
+bot.launch().then(() => console.log("Nexus Sovereign v3 a pornit!"));
