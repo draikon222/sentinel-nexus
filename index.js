@@ -11,4 +11,3 @@ cron.schedule('* * * * *', async () => {
         console.log("Lecție primită: " + response.data.candidates[0].content.parts[0].text.substring(0, 100) + "...");
     } catch (e) { console.log("Eroare la conexiune. Verifică cheia API."); }
 });
-
