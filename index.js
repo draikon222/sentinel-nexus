@@ -2,10 +2,10 @@ const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const http = require('http');
 
-// 1. Server HTTP (Vital pentru a opri Render din a da erori de port)
+// 1. Server HTTP pentru Render (Port 3000)
 http.createServer((req, res) => {
     res.writeHead(200);
-    res.end('NEXUS_ULTIMATE_FREE');
+    res.end('NEXUS_SYSTEM_ONLINE');
 }).listen(process.env.PORT || 3000);
 
 // 2. Configurare Nexus
@@ -14,10 +14,10 @@ const MY_ID = process.env.MY_ID;
 const apiKey = process.env.OPENROUTER_KEY;
 
 bot.on('text', async (ctx) => {
-    // Verificare identitate
+    // Verificăm identitatea
     if (ctx.from.id.toString() !== MY_ID) return;
 
-    const waitingMsg = await ctx.reply("🌀 Nexus accesează nucleul de rezervă...");
+    const waitingMsg = await ctx.reply("🌀 Nexus accesează nucleul Llama 3.1...");
 
     try {
         const response = await axios({
@@ -30,8 +30,8 @@ bot.on('text', async (ctx) => {
                 'X-Title': 'Sentinel Nexus'
             },
             data: {
-                // MODEL GRATUIT CU TRAFIC MIC (Evităm eroarea de ocupat)
-                model: "gryphe/mythomist-7b:free", 
+                // MODEL GRATUIT ȘI ULTRA-STABIL
+                model: "meta-llama/llama-3.1-8b-instruct:free", 
                 messages: [
                     { 
                         role: "system", 
@@ -47,13 +47,13 @@ bot.on('text', async (ctx) => {
 
     } catch (e) {
         console.error("Eroare OpenRouter:", e.response ? e.response.data : e.message);
-        await ctx.telegram.editMessageText(ctx.chat.id, waitingMsg.message_id, null, "⚠️ Eroare temporară de trafic. Mai apasă o dată pe mesaj peste 10 secunde.");
+        await ctx.telegram.editMessageText(ctx.chat.id, waitingMsg.message_id, null, "⚠️ Eroare: Modelul este suprasolicitat. Mai încearcă o dată peste 15 secunde.");
     }
 });
 
 // 3. Pornire Motor
 bot.launch()
-    .then(() => console.log("🚀 Motorul Nexus este ONLINE pe Mythomist!"))
+    .then(() => console.log("🚀 Motorul Nexus este LIVE pe Llama 3.1!"))
     .catch((err) => console.error("Eroare pornire:", err));
 
 // Oprire sigură
