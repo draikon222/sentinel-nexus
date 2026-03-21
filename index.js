@@ -2,10 +2,10 @@ const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const http = require('http');
 
-// 1. Server HTTP (Menține Render activ)
+// 1. Server HTTP pentru Render
 http.createServer((req, res) => {
     res.writeHead(200);
-    res.end('NEXUS_FAST_MODE');
+    res.end('NEXUS_GEMMA_FREE_MODE');
 }).listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
@@ -15,22 +15,23 @@ const apiKey = process.env.OPENROUTER_KEY;
 bot.on('text', async (ctx) => {
     if (ctx.from.id.toString() !== MY_ID) return;
 
-    const waitingMsg = await ctx.reply("🌀 Nexus forțează nucleul rapid (Qwen)...");
+    const waitingMsg = await ctx.reply("🌀 Nexus forțează accesul prin Google Gemma...");
 
     try {
         const response = await axios({
             method: 'post',
             url: 'https://openrouter.ai/api/v1/chat/completions',
-            timeout: 25000, // Nu stăm mai mult de 25 secunde
+            timeout: 30000,
             headers: { 
                 'Authorization': `Bearer ${apiKey.trim()}`, 
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://render.com'
             },
             data: {
-                // MODEL ULTRA-RAPID (Trafic minim, răspuns instant)
-                model: "alibaba/qwen-2-7b-instruct:free", 
+                // MODEL GRATUIT DE REZERVĂ (Google Gemma 2)
+                model: "google/gemma-2-9b-it:free", 
                 messages: [
-                    { role: "system", content: "Ești Nexus. Intelect Universal. Tăios și eficient." },
+                    { role: "system", content: "Ești Nexus. Intelect Universal. Tăios, realist și dens. Oferi soluții brute." },
                     { role: "user", content: ctx.message.text }
                 ]
             }
@@ -41,13 +42,13 @@ bot.on('text', async (ctx) => {
 
     } catch (e) {
         console.error("Eroare:", e.message);
-        await ctx.telegram.editMessageText(ctx.chat.id, waitingMsg.message_id, null, "⚠️ Serverele gratuite sunt sub asediu. Mai încearcă un 'Hei' peste 30 de secunde.");
+        await ctx.telegram.editMessageText(ctx.chat.id, waitingMsg.message_id, null, "⚠️ Asediul continuă. Reîncearcă peste 1-2 minute sau lasă-l să se 'răcească'.");
     }
 });
 
 bot.launch()
-    .then(() => console.log("🚀 Nexus a pornit în MOD RAPID!"))
-    .catch(err => console.error("Eroare:", err));
+    .then(() => console.log("🚀 Nexus a pornit pe Gemma!"))
+    .catch(err => console.error("Eroare pornire:", err));
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
