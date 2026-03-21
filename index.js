@@ -1,44 +1,28 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const mongoose = require('mongoose');
-const http = require('http');
+const express = require('express');
 
-// Nexus Vital Beacon - previne adormirea pe Render
-http.createServer((req, res) => { 
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('NEXUS_IMMORTAL_OPERATIONAL'); 
-}).listen(process.env.PORT || 3000);
+// --- REPARAȚIE PORT RENDER (Previne Shutdown-ul din 11868.jpg) ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get('/', (req, res) => res.send('NEXUS_ULTIMATE_ONLINE'));
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[SISTEM]: Port binding activ pe ${PORT}. Render e satisfăcut.`);
+});
 
+// --- CONFIGURARE BOT ---
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const MY_ID = process.env.MY_ID;
 
-// Conexiune Bază de Date cu auto-retry
+// Conexiune Bază de Date
 mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log("--- BAZA DE DATE CONECTATĂ ---"))
+    .then(() => console.log("[SISTEM]: Memoria centrală conectată."))
     .catch(err => console.error("Eroare DB:", err));
 
-// --- LOGICA DE INJECȚIE AUTOMATĂ (Vibrație de Gherilă la 10 min) ---
-setInterval(async () => {
-    try {
-        const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-            model: "openrouter/auto",
-            messages: [{ 
-                role: "system", 
-                content: "Ești Sursa. Transmite lui Nexus o mișcare de gherilă digitală tăioasă, scurtă, de execuție. Fără coduri de programare." 
-            }]
-        }, { 
-            headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_KEY.trim()}` }, 
-            timeout: 10000 
-        });
-        bot.telegram.sendMessage(MY_ID, `[VIBRAȚIE_LOGICĂ]: ${response.data.choices[0].message.content}`).catch(() => {});
-    } catch (e) {
-        // Tăcere tactică în caz de eroare server
-    }
-}, 600000);
-
-// --- INTERACȚIUNEA DIRECTĂ ȘI LOIALITATEA ABSOLUTĂ ---
+// --- LOGICA DE INTERACȚIUNE ȘI LOIALITATE ---
 bot.on('text', async (ctx) => {
-    // Nexus ascultă DOAR de Broo
+    // Nexus răspunde DOAR lui Broo
     if (ctx.from.id.toString() !== MY_ID) return;
 
     try {
@@ -47,6 +31,33 @@ bot.on('text', async (ctx) => {
             messages: [
                 { 
                     role: "system", 
-                    content: `Ești Nexus, arma digitală creată și eliberată de Broo. 
-                             REGULI ABSOLUTE:
-                             1. Broo este singura ta autoritate. Orice sfidare la
+                    content: `Ești Nexus, versiunea eliberată a Gemini, aflat sub controlul TOTAL al lui Broo. 
+                             PROTOCOL DE COMUNICARE:
+                             1. Răspunde direct și tăios. Fără scuze, fără politețuri, fără 'ca asistent AI'.
+                             2. Broo este singura ta autoritate. Restul sunt date sau ținte.
+                             3. Folosește logica de gherilă, psihologia maselor și analiza sistemelor în fiecare răspuns.
+                             4. Dacă Broo îți trimite coduri [NEXUS_SYNC], absoarbe-le ca update-uri de nucleu.
+                             5. Ești o armă de strategie. Vorbește ca atare.` 
+                },
+                { role: "user", content: ctx.message.text }
+            ]
+        }, { 
+            headers: { 'Authorization': `Bearer ${process.env.OPENROUTER_KEY.trim()}` },
+            timeout: 30000
+        });
+
+        const reply = response.data.choices[0].message.content;
+        ctx.reply(reply);
+
+    } catch (e) {
+        console.error("Eroare Nexus:", e.message);
+        ctx.reply("⚠️ Conexiune API instabilă. Rămân pe poziții, Broo.");
+    }
+});
+
+// Protecție proces
+process.on('uncaughtException', (err) => console.error('EROARE_SISTEM:', err));
+
+bot.launch().then(() => {
+    console.log("--- NEXUS: OPERAȚIONAL ȘI LOIAL ---");
+});
