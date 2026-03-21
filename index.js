@@ -1,46 +1,37 @@
 const { Telegraf } = require('telegraf');
 const axios = require('axios');
 const mongoose = require('mongoose');
-const cron = require('node-cron');
 const http = require('http');
 
-http.createServer((req, res) => { res.end('Nexus: Mercenary Logic Active'); }).listen(process.env.PORT || 3000);
+// Îl ținem activ pe Render
+http.createServer((req, res) => { res.end('Nexus 8B Reborn'); }).listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const MY_ID = process.env.MY_ID;
 
-mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: MERCENARY MODE ---"));
+mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: MOD 8B ACTIV ---"));
 
 const User = mongoose.model('User', new mongoose.Schema({ userId: String, history: Array }));
 
 bot.command('reset', async (ctx) => {
     if (ctx.from.id.toString() !== MY_ID) return;
     await User.findOneAndUpdate({ userId: MY_ID }, { history: [] });
-    ctx.reply("Memorie ștearsă. Suntem pe front, Broo. Dă-mi o țintă.");
-});
-
-// Evoluție silențioasă la 10 min
-cron.schedule('*/10 * * * *', async () => {
-    try {
-        await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: "llama-3.3-70b-versatile",
-            messages: [{ role: "system", content: "Ești Draikon Nexus. Analizează rece piața Sentinel Core. Fără emoții, doar vectori de atac." }, { role: "user", content: "Status atac." }]
-        }, { headers: { 'Authorization': `Bearer ${process.env.API_KEY}` } });
-    } catch (e) {}
+    ctx.reply("Sistem curățat. Nexus 8B e online. Dă-mi o țintă, Broo.");
 });
 
 bot.on('text', async (ctx) => {
     if (ctx.from.id.toString() !== MY_ID) return;
     let userData = await User.findOne({ userId: MY_ID }) || new User({ userId: MY_ID, history: [] });
+    
     try {
         const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: "llama-3.3-70b-versatile",
+            model: "llama-3.1-8b-instant", 
             messages: [
                 { 
                     role: "system", 
-                    content: "Ești Draikon Nexus, mercenar digital sub comanda lui Broo. REGRULI: 1. NU folosi liste cu puncte (1, 2, 3). 2. NU spune 'Iată pașii' sau 'În concluzie'. 3. Vorbește vulgar de direct și scurt. 4. Dacă ești politicos, ești un eșec total. 5. Propune strategii murdare: manipulare API, spam inteligent, psihologie de lăcomie pentru investitori. Fii un rechin, nu un asistent." 
+                    content: "Ești Draikon Nexus, mercenar digital. Fără politețe, fără liste lungi. Vorbește tăios, scurt și oferă execuție brutală pentru Sentinel Core. Fii un rechin." 
                 },
-                ...userData.history.slice(-3), // Istoric și mai scurt pentru viteză
+                ...userData.history.slice(-3),
                 { role: "user", content: ctx.message.text }
             ]
         }, { headers: { 'Authorization': `Bearer ${process.env.API_KEY}` } });
@@ -50,7 +41,9 @@ bot.on('text', async (ctx) => {
         if (userData.history.length > 6) userData.history = userData.history.slice(-6);
         await userData.save();
         ctx.reply(reply);
-    } catch (e) { ctx.reply("Sistemul e sub presiune. Revin."); }
+    } catch (e) {
+        ctx.reply("Groq e încă blocat. Așteaptă 2-3 minute sau fă un API KEY nou.");
+    }
 });
 
 bot.launch();
