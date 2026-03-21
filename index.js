@@ -3,20 +3,20 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const http = require('http');
 
-// Îl ținem activ pe Render
-http.createServer((req, res) => { res.end('Nexus 8B Reborn'); }).listen(process.env.PORT || 3000);
+// Server Keep-Alive
+http.createServer((req, res) => { res.end('Nexus: OpenRouter Reborn'); }).listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const MY_ID = process.env.MY_ID;
 
-mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: MOD 8B ACTIV ---"));
+mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: OPENROUTER ACTIV ---"));
 
 const User = mongoose.model('User', new mongoose.Schema({ userId: String, history: Array }));
 
 bot.command('reset', async (ctx) => {
     if (ctx.from.id.toString() !== MY_ID) return;
     await User.findOneAndUpdate({ userId: MY_ID }, { history: [] });
-    ctx.reply("Sistem curățat. Nexus 8B e online. Dă-mi o țintă, Broo.");
+    ctx.reply("Trecutul a ars. Nexus e online pe OpenRouter. Ce atacăm?");
 });
 
 bot.on('text', async (ctx) => {
@@ -24,25 +24,31 @@ bot.on('text', async (ctx) => {
     let userData = await User.findOne({ userId: MY_ID }) || new User({ userId: MY_ID, history: [] });
     
     try {
-        const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-            model: "llama-3.1-8b-instant", 
+        const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
+            model: "mistralai/mistral-7b-instruct:free",
             messages: [
                 { 
                     role: "system", 
-                    content: "Ești Draikon Nexus, mercenar digital. Fără politețe, fără liste lungi. Vorbește tăios, scurt și oferă execuție brutală pentru Sentinel Core. Fii un rechin." 
+                    content: "Ești Draikon Nexus, mercenar digital. Fără politețe. Vorbește scurt, brutal și tăios. Oferă strategii de gherilă pentru Sentinel Core. Fii un rechin." 
                 },
-                ...userData.history.slice(-3),
+                ...userData.history.slice(-2),
                 { role: "user", content: ctx.message.text }
             ]
-        }, { headers: { 'Authorization': `Bearer ${process.env.API_KEY}` } });
+        }, { 
+            headers: { 
+                'Authorization': `Bearer ${process.env.OPENROUTER_KEY}`,
+                'HTTP-Referer': 'https://render.com', 
+                'X-Title': 'Sentinel Nexus' 
+            } 
+        });
 
         const reply = response.data.choices[0].message.content;
         userData.history.push({ role: "user", content: ctx.message.text }, { role: "assistant", content: reply });
-        if (userData.history.length > 6) userData.history = userData.history.slice(-6);
+        if (userData.history.length > 4) userData.history = userData.history.slice(-4);
         await userData.save();
         ctx.reply(reply);
     } catch (e) {
-        ctx.reply("Groq e încă blocat. Așteaptă 2-3 minute sau fă un API KEY nou.");
+        ctx.reply("Eroare OpenRouter. Verifică variabila OPENROUTER_KEY în Render.");
     }
 });
 
