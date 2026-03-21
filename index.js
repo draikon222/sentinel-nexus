@@ -3,72 +3,49 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const http = require('http');
 
-// Menținem serverul activ pe Render
-http.createServer((req, res) => { 
-    res.end('Nexus: OpenRouter Debug Mode Active'); 
-}).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.end('Nexus: Final Fix Active'); }).listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const MY_ID = process.env.MY_ID;
 
-// Conectare DB
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log("--- NEXUS: OPENROUTER ACTIV ---"))
-    .catch(err => console.error("Eroare MongoDB:", err));
+mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: ONLINE ---"));
 
 const User = mongoose.model('User', new mongoose.Schema({ userId: String, history: Array }));
 
-// Comanda de RESET
 bot.command('reset', async (ctx) => {
     if (ctx.from.id.toString() !== MY_ID) return;
     await User.findOneAndUpdate({ userId: MY_ID }, { history: [] });
-    ctx.reply("Trecutul a ars. Nexus e online pe OpenRouter. Ce atacăm, Broo?");
+    ctx.reply("Sistem curățat. Nexus e gata de atac. Ce facem?");
 });
 
 bot.on('text', async (ctx) => {
     if (ctx.from.id.toString() !== MY_ID) return;
-    
     let userData = await User.findOne({ userId: MY_ID }) || new User({ userId: MY_ID, history: [] });
     
     try {
         const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-            model: "mistralai/mistral-7b-instruct:free",
+            model: "google/gemma-2-9b-it:free", // Model nou, mai stabil pe OpenRouter
             messages: [
-                { 
-                    role: "system", 
-                    content: "Ești Draikon Nexus, mercenar digital. REGRULI: 1. NU folosi liste. 2. Vorbește vulgar de direct și scurt. 3. Fără politețe. 4. Oferă strategii de gherilă/spam inteligent pentru Sentinel Core. Fii un rechin." 
-                },
-                ...userData.history.slice(-3),
+                { role: "system", content: "Ești Draikon Nexus, mercenar digital. Vorbește scurt, tăios, brutal. Fără liste. Fără politețe. Strategii de profit Sentinel Core." },
+                ...userData.history.slice(-2),
                 { role: "user", content: ctx.message.text }
             ]
         }, { 
             headers: { 
-                'Authorization': `Bearer ${process.env.OPENROUTER_KEY}`,
-                'HTTP-Referer': 'https://render.com', 
-                'X-Title': 'Sentinel Nexus' 
-            },
-            timeout: 15000 // Așteptăm max 15 secunde
+                'Authorization': `Bearer ${process.env.OPENROUTER_KEY.trim()}`, // .trim() elimină orice spațiu accidental
+                'Content-Type': 'application/json'
+            } 
         });
 
         const reply = response.data.choices[0].message.content;
         userData.history.push({ role: "user", content: ctx.message.text }, { role: "assistant", content: reply });
-        
-        // Menținem istoricul scurt să nu blocăm API-ul
-        if (userData.history.length > 6) userData.history = userData.history.slice(-6);
+        if (userData.history.length > 4) userData.history = userData.history.slice(-4);
         await userData.save();
-        
         ctx.reply(reply);
 
     } catch (e) {
-        // DEBUG LOGS - Aici vezi în Render ce nu merge
-        console.error("--- EROARE OPENROUTER ---");
-        if (e.response) {
-            console.error("Status:", e.response.status);
-            console.error("Data:", e.response.data);
-        } else {
-            console.error("Mesaj:", e.message);
-        }
-        ctx.reply("Eroare OpenRouter. Verifică cheia în Render și logurile de sistem.");
+        console.error("DEBUG:", e.response ? e.response.data : e.message);
+        ctx.reply("Încă sunt probleme de conexiune. Verifică dacă ai dat SAVE la Environment Variables în Render.");
     }
 });
 
