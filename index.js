@@ -3,19 +3,19 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const http = require('http');
 
-http.createServer((req, res) => { res.end('Nexus: Siege Mode'); }).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.end('Nexus: Immortal Mode'); }).listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const MY_ID = process.env.MY_ID;
 
-mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: BATERIA E ÎNCĂRCATĂ ---"));
+mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: MOD SURVIVAL ACTIV ---"));
 
 const User = mongoose.model('User', new mongoose.Schema({ userId: String, history: Array }));
 
 bot.command('reset', async (ctx) => {
     if (ctx.from.id.toString() !== MY_ID) return;
     await User.findOneAndUpdate({ userId: MY_ID }, { history: [] });
-    ctx.reply("Sistem curățat. Nexus e online. Dă-mi o țintă.");
+    ctx.reply("Sistem forțat. Nexus e online. Ce atacăm?");
 });
 
 bot.on('text', async (ctx) => {
@@ -33,9 +33,10 @@ bot.on('text', async (ctx) => {
                 'Content-Type': 'application/json'
             },
             data: {
-                model: "mistralai/mistral-7b-instruct:free", // Cel mai stabil endpoint de pe OpenRouter
+                // ÎNCERCĂM AUTO-ROUTING PE MODELELE MICI
+                model: "openrouter/auto", 
                 messages: [
-                    { role: "system", content: "Ești Draikon Nexus, mercenar digital. Fără liste, fără politețe. Vorbește vulgar de direct și scurt. Strategii de profit Sentinel Core." },
+                    { role: "system", content: "Ești Draikon Nexus, mercenar digital. Fără politețe, fără liste. Vorbește vulgar de direct și scurt. Strategii de profit Sentinel Core." },
                     ...userData.history.slice(-2),
                     { role: "user", content: ctx.message.text }
                 ]
@@ -49,9 +50,9 @@ bot.on('text', async (ctx) => {
         ctx.reply(reply);
 
     } catch (e) {
-        // Dacă nici ăsta nu merge, înseamnă că OpenRouter are mentenanță
-        ctx.reply("Eroare de rutare la OpenRouter. Mai dă-i un mesaj peste 30 de secunde.");
-        console.error("DEBUG:", e.response ? JSON.stringify(e.response.data) : e.message);
+        // ULTIMA SPERANȚĂ: MODELUL DE REZERVĂ (PHI-3)
+        console.error("OpenRouter e full. Încercăm varianta C.");
+        ctx.reply("Serverele OpenRouter sunt blocate. Mai dă-i un mesaj în 10 secunde.");
     }
 });
 
