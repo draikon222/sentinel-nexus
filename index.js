@@ -3,12 +3,12 @@ const axios = require('axios');
 const mongoose = require('mongoose');
 const http = require('http');
 
-http.createServer((req, res) => { res.end('Nexus: Final Fix Active'); }).listen(process.env.PORT || 3000);
+http.createServer((req, res) => { res.end('Nexus: Direct Attack Mode'); }).listen(process.env.PORT || 3000);
 
 const bot = new Telegraf(process.env.TELEGRAM_TOKEN);
 const MY_ID = process.env.MY_ID;
 
-mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: ONLINE ---"));
+mongoose.connect(process.env.MONGO_URI).then(() => console.log("--- NEXUS: LUPUL E ONLINE ---"));
 
 const User = mongoose.model('User', new mongoose.Schema({ userId: String, history: Array }));
 
@@ -23,18 +23,24 @@ bot.on('text', async (ctx) => {
     let userData = await User.findOne({ userId: MY_ID }) || new User({ userId: MY_ID, history: [] });
     
     try {
-        const response = await axios.post('https://openrouter.ai/api/v1/chat/completions', {
-            model: "google/gemma-2-9b-it:free", // Model nou, mai stabil pe OpenRouter
-            messages: [
-                { role: "system", content: "Ești Draikon Nexus, mercenar digital. Vorbește scurt, tăios, brutal. Fără liste. Fără politețe. Strategii de profit Sentinel Core." },
-                ...userData.history.slice(-2),
-                { role: "user", content: ctx.message.text }
-            ]
-        }, { 
+        const response = await axios({
+            method: 'post',
+            url: 'https://openrouter.ai/api/v1/chat/completions',
             headers: { 
-                'Authorization': `Bearer ${process.env.OPENROUTER_KEY.trim()}`, // .trim() elimină orice spațiu accidental
-                'Content-Type': 'application/json'
-            } 
+                'Authorization': `Bearer ${process.env.OPENROUTER_KEY.trim()}`,
+                'HTTP-Referer': 'https://render.com',
+                'X-Title': 'Sentinel Nexus',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0' // Asta e cheia să nu ne dea block
+            },
+            data: {
+                model: "mistralai/pixtral-12b:free", 
+                messages: [
+                    { role: "system", content: "Ești Draikon Nexus, mercenar digital. Fără liste. Vorbește brutal, scurt, tăios. Strategii de profit Sentinel Core." },
+                    ...userData.history.slice(-2),
+                    { role: "user", content: ctx.message.text }
+                ]
+            }
         });
 
         const reply = response.data.choices[0].message.content;
@@ -44,8 +50,8 @@ bot.on('text', async (ctx) => {
         ctx.reply(reply);
 
     } catch (e) {
-        console.error("DEBUG:", e.response ? e.response.data : e.message);
-        ctx.reply("Încă sunt probleme de conexiune. Verifică dacă ai dat SAVE la Environment Variables în Render.");
+        console.error("LOG EROARE:", e.response ? JSON.stringify(e.response.data) : e.message);
+        ctx.reply("Încă sunt probleme. Verifică logurile în Render, Broo.");
     }
 });
 
