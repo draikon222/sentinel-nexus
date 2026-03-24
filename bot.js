@@ -9,70 +9,45 @@ const token = process.env.TELEGRAM_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 
 let model;
-
-// Creierul AI - Încarcă modelul pentru recunoașterea obiectelor (copaci, oameni, etc.)
 async function loadModel() {
     try {
         model = await mobilenet.load();
-        console.log("🛡️ NEXUS: Sistem de viziune universală online.");
-    } catch (e) {
-        console.error("❌ Eroare încărcare AI.");
-    }
+        console.log("🛡️ NEXUS: Ochi activi.");
+    } catch (e) { console.error("Eroare AI"); }
 }
 loadModel();
 
-// Curățăm orice sesiune veche (Eroarea 409)
-bot.deleteWebHook().then(() => {
-    console.log("🛡️ NEXUS: Conexiune resetată.");
-});
-
-bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "🛡️ Nexus Online. Trimite orice poză; identific obiectele și citesc textul.");
-});
-
-bot.on('photo', async (msg) => {
+// Răspunde doar când îi scrii tu ceva specific, nu la orice
+bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "🔍 Analizez complet imaginea...");
+    
+    // Dacă e poză, o analizăm
+    if (msg.photo) {
+        bot.sendMessage(chatId, "🔍 Analizez imaginea...");
+        try {
+            const fileId = msg.photo[msg.photo.length - 1].file_id;
+            const fileLink = await bot.getFileLink(fileId);
+            
+            // Obiecte
+            const response = await axios.get(fileLink, { responseType: 'arraybuffer' });
+            const predictions = await model.classify(tf.node.decodeImage(Buffer.from(response.data)));
+            
+            // Text
+            const { data: { text } } = await Tesseract.recognize(fileLink, 'eng');
 
-    try {
-        const fileId = msg.photo[msg.photo.length - 1].file_id;
-        const fileLink = await bot.getFileLink(fileId);
-
-        // --- Analiză Obiecte ---
-        const response = await axios.get(fileLink, { responseType: 'arraybuffer' });
-        const imageBuffer = Buffer.from(response.data);
-        const imageTensor = tf.node.decodeImage(imageBuffer);
-        const predictions = await model.classify(imageTensor);
-        
-        // --- Analiză Text ---
-        const { data: { text } } = await Tesseract.recognize(fileLink, 'eng');
-
-        let raport = "🛡️ **RAPORT NEXUS**\n\n🤖 **VĂD:**\n";
-        predictions.forEach(p => {
-            raport += `- ${p.className} (${(p.probability * 100).toFixed(1)}%)\n`;
-        });
-
-        raport += "\n📝 **TEXT DETECTAT:**\n";
-        raport += (text && text.trim().length > 0) ? text.trim() : "Nu am detectat text.";
-
-        bot.sendMessage(chatId, raport);
-        imageTensor.dispose(); 
-    } catch (e) {
-        bot.sendMessage(chatId, "❌ Eroare la procesarea vizuală.");
+            let raport = "🛡️ **NEXUS REPORT**\n\n🤖 Văd: " + predictions[0].className + "\n📝 Text: " + (text ? text.trim() : "Nimic");
+            bot.sendMessage(chatId, raport);
+        } catch (e) { bot.sendMessage(chatId, "❌ Eroare analiză."); }
+        return;
     }
-});
 
-// Răspunde la orice mesaj text (Funcție păstrată conform cerinței)
-bot.on('message', (msg) => {
+    // Dacă e text și NU e comandă, răspundem o singură dată
     if (msg.text && !msg.text.startsWith('/')) {
-        bot.sendMessage(msg.chat.id, "Sunt aici. Trimite o poză clară pentru analiză.");
+        const text = msg.text.toLowerCase();
+        if (text.includes("salut") || text.includes("ce faci") || text.includes("broo")) {
+            bot.sendMessage(chatId, "Sunt online, Broo. Trimite poza aia odată să vedem ce e în ea.");
+        }
     }
 });
 
-// Portul 10000 fix pentru Render (Rezolvă eroarea roz)
-http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('Nexus Live');
-}).listen(10000, '0.0.0.0', () => {
-    console.log("🚀 Server port 10000 activ.");
-});
+http.createServer((req, res) => { res.writeHead(200); res.end('Nexus Active'); }).listen(10000);
