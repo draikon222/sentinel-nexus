@@ -2,97 +2,61 @@ const TelegramBot = require('node-telegram-bot-api');
 const Tesseract = require('tesseract.js');
 const tf = require('@tensorflow/tfjs-node');
 const mobilenet = require('@tensorflow-models/mobilenet');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const Groq = require('groq-sdk');
 const axios = require('axios');
 const http = require('http');
 
-// Configurare Bot și AI
 const bot = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 let visionModel;
-
-// Inițializare Sisteme
-async function initSystems() {
+async function init() {
     try {
         visionModel = await mobilenet.load();
-        console.log("🛡️ NEXUS OMEGA: Sisteme Online.");
-    } catch (e) {
-        console.error("❌ Eroare inițializare sisteme.");
-    }
+        console.log("🛡️ NEXUS: Sisteme de viziune pregătite.");
+    } catch (e) { console.log("Eroare model vizual"); }
 }
-initSystems();
-
-// Resetare Webhook pentru a evita eroarea 409 Conflict
-bot.deleteWebHook().then(() => {
-    console.log("🛡️ NEXUS: Conexiune curățată.");
-});
+init();
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     if (!msg.text && !msg.photo) return;
 
-    // --- 1. ANALIZĂ VIZUALĂ (FOTO) ---
+    // --- ANALIZĂ VIZUALĂ ---
     if (msg.photo) {
-        bot.sendMessage(chatId, "🔍 Nexus analizează imaginea...");
+        bot.sendMessage(chatId, "🔍 Analizez...");
         try {
-            const fileId = msg.photo[msg.photo.length - 1].file_id;
-            const fileLink = await bot.getFileLink(fileId);
-            
-            // Recunoaștere Obiecte (TensorFlow)
+            const fileLink = await bot.getFileLink(msg.photo[msg.photo.length - 1].file_id);
             const response = await axios.get(fileLink, { responseType: 'arraybuffer' });
             const predictions = await visionModel.classify(tf.node.decodeImage(Buffer.from(response.data)));
-            
-            // Recunoaștere Text (Tesseract)
             const { data: { text } } = await Tesseract.recognize(fileLink, 'eng');
 
-            let raport = `🛡️ **RAPORT NEXUS**\n\n🤖 Văd: ${predictions[0].className}\n📝 Text: ${text.trim() || "Nu am detectat text."}`;
-            bot.sendMessage(chatId, raport);
-        } catch (e) {
-            bot.sendMessage(chatId, "❌ Eroare la procesarea vizuală.");
-        }
+            bot.sendMessage(chatId, `🤖 Văd: ${predictions[0].className}\n📝 Text: ${text.trim() || "Fără text"}`);
+        } catch (e) { bot.sendMessage(chatId, "❌ Eroare vizuală."); }
         return;
     }
 
-    const input = msg.text.toLowerCase();
+    const input = msg.text.trim().toLowerCase();
 
-    // --- 2. FUNCȚIE METEO ---
-    if (input.startsWith("vremea in") || input.includes("vremea la")) {
-        const oras = input.split("in ")[1] || input.split("la ")[1];
-        if (oras) {
-            try {
-                const weatherRes = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${oras}&units=metric&appid=${process.env.WEATHER_API_KEY}&lang=ro`);
-                const data = weatherRes.data;
-                bot.sendMessage(chatId, `🌦️ În ${oras.toUpperCase()}: ${data.weather[0].description}, Temp: ${data.main.temp}°C.`);
-            } catch (e) {
-                bot.sendMessage(chatId, "❌ Nu am găsit informații meteo pentru acest oraș.");
-            }
-            return;
-        }
-    }
-
-    // --- 3. INTELIGENȚĂ UNIVERSALĂ (Orice domeniu - Gemini) ---
-    if (!msg.text.startsWith('/')) {
+    // --- LOGICĂ METEO ---
+    if (input.includes("vremea")) {
+        const oras = input.split(" ").pop();
         try {
-            const model = genAI.getGenerativeModel({ model: "gemini-pro" });
-            const result = await model.generateContent(msg.text);
-            const response = await result.response;
-            bot.sendMessage(chatId, response.text());
-        } catch (e) {
-            bot.sendMessage(chatId, "🤔 Am întâmpinat o eroare în gândire. Mai încearcă o dată.");
-        }
+            const w = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${oras}&units=metric&appid=${process.env.WEATHER_API_KEY}&lang=ro`);
+            bot.sendMessage(chatId, `🌦️ În ${oras.toUpperCase()}: ${w.data.weather[0].description}, ${w.data.main.temp}°C.`);
+        } catch (e) { bot.sendMessage(chatId, `❌ Nu am găsit vremea pentru ${oras}.`); }
+        return;
     }
+
+    // --- INTELIGENȚĂ GROQ (Llama 3) ---
+    try {
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [{ role: 'user', content: msg.text }],
+            model: 'llama3-8b-8192',
+        });
+        bot.sendMessage(chatId, chatCompletion.choices[0].message.content);
+    } catch (e) { bot.sendMessage(chatId, "❌ Groq este momentan ocupat."); }
 });
 
-// Comanda Start
-bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "🛡️ Nexus Omega activ. Îmi poți trimite poze sau mă poți întreba orice.");
-});
-
-// Server obligatoriu port 10000 pentru Render
-http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('Nexus Omega Live');
-}).listen(10000, '0.0.0.0', () => {
-    console.log("🚀 Server port 10000 activ.");
-});
+// Server pentru portul 10000 cerut de Render
+http.createServer((req, res) => { res.writeHead(200); res.end('Nexus Active'); }).listen(10000);
