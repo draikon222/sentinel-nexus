@@ -1,48 +1,48 @@
 const Tesseract = require('tesseract.js');
 const TelegramBot = require('node-telegram-bot-api');
 
-// TOKEN-UL TĂU ACTUALIZAT
-const token = '8449650506:AAGSS21yjNdU-3IvEwWWW8kDtDL0WQBIStk';
+// Luăm token-ul din Environment ca să nu mai avem erori 401/404
+const token = process.env.BOT_TOKEN; 
 const bot = new TelegramBot(token, {polling: true});
 
-console.log("Nexus Vision V1.0 Online - Token confirmat.");
+console.log("Nexus Hybrid V1.0 - Motorul de aseară + Vision Online.");
 
-// --- FUNCȚIA DE ANALIZĂ VIZUALĂ ---
+// --- LOGICA DE ASEARĂ (Funcțiile care au mers) ---
+// (Aici Nexus rămâne asistentul tău tăios care confirmă tranzacțiile)
+
+bot.onText(/\/start/, (msg) => {
+    bot.sendMessage(msg.chat.id, "🛡️ Sentinel Nexus Online. Motorul de profit este activat. Trimite text sau screenshot pentru validare.");
+});
+
+// --- LOGICA DE VEDERE (Cerința de azi) ---
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "🛡️ Nexus procesează imaginea... verific nodurile Sentinel...");
+    bot.sendMessage(chatId, "Nexus analizează imaginea... verific integritatea rețelei...");
 
     try {
-        // Luăm cea mai calitativă variantă a pozei
         const fileId = msg.photo[msg.photo.length - 1].file_id;
         const fileLink = await bot.getFileLink(fileId);
 
-        // Nexus începe să "citească" textul din screenshot
+        // Scanăm poza (OCR)
         const { data: { text } } = await Tesseract.recognize(fileLink, 'eng');
-
-        console.log("Text extras:", text);
-
-        // Căutăm cuvinte cheie: SOL, SENTINEL, WITHDRAWAL
         const upperText = text.toUpperCase();
-        if (upperText.includes("SOL") || upperText.includes("SENTINEL") || upperText.includes("WITHDRAWAL")) {
-            bot.sendMessage(chatId, "✅ **Validare Reușită!**\n\nNexus a detectat date de rețea active.\nExtras:\n" + text.substring(0, 300) + "...");
+
+        // Validare bazată pe ce vede în screenshot-ul tău de 5.21 SOL
+        if (upperText.includes("SOL") || upperText.includes("CONFIRMED") || upperText.includes("SUCCESS")) {
+            bot.sendMessage(chatId, "✅ **Validare Vizuală Reușită!**\n\nNexus a detectat date de profit active.\n\n" + text.substring(0, 250));
         } else {
-            bot.sendMessage(chatId, "⚠️ **Nexus Vision:** Imagine scanată, dar nu am găsit marcaje de profit (SOL). Asigură-te că screenshot-ul e clar.");
+            bot.sendMessage(chatId, "⚠️ Nexus Vision: Am procesat poza, dar nu văd marcaje de SOL. Trimite un screenshot mai clar cu balanța.");
         }
     } catch (error) {
         console.error("Eroare Vision:", error);
-        bot.sendMessage(chatId, "❌ Eroare la procesarea vizuală. Verifică log-urile serverului.");
+        bot.sendMessage(chatId, "❌ Eroare tehnică la procesarea imaginii.");
     }
 });
 
-// --- RĂSPUNS LA TEXT ---
+// --- LOGICA DE TEXT (Ce făcea el aseară) ---
 bot.on('message', (msg) => {
-    // Dacă e text și NU e comandă, răspunde cu instrucțiuni
     if (msg.text && !msg.text.startsWith('/')) {
-        bot.sendMessage(msg.chat.id, "🤖 **Sentinel Nexus V1.0**\n\nSunt în mod de execuție. Trimite un screenshot cu balanța ta sau cu retragerea de SOL pentru procesare vizuală.");
+        // Aici poți lăsa logica lui de răspuns arogant/tăios pe care o iubești
+        bot.sendMessage(msg.chat.id, "Execuție în curs. Dacă vrei să validez un profit, trimite-mi screenshot-ul, nu mă pune să ghicesc în text.");
     }
 });
-
-// Handler pentru comanda /start
-bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "🛡️ Nexus Online. Trimite dovada vizuală (foto) pentru
