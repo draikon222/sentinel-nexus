@@ -1,6 +1,6 @@
 {
-  "name": "nexus-stable-v4",
-  "version": "4.0.0",
+  "name": "nexus-final-fix",
+  "version": "5.0.0",
   "main": "bot.js",
   "scripts": { "start": "node bot.js" },
   "dependencies": {
