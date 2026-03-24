@@ -1,47 +1,32 @@
 const TelegramBot = require('node-telegram-bot-api');
-const Tesseract = require('tesseract.js');
-const tf = require('@tensorflow/tfjs-node');
-const mobilenet = require('@tensorflow-models/mobilenet');
 const Groq = require('groq-sdk');
 const axios = require('axios');
 const http = require('http');
 
-// CONFIGURARE HARDCODATĂ PENTRU ELIMINAREA ERORILOR DE ENV
 const token = '8449650506:AAFGrNk9Rj4Xcl-zSEp66R0QzuELbZ51uNI';
+const bot = new TelegramBot(token, { polling: false }); 
+
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const bot = new TelegramBot(token, { polling: true });
 
-let model;
-async function initAI() {
+// FUNCȚIA CARE OMOARĂ CONFLICTUL 409
+async function forceStart() {
+    console.log("🛡️ NEXUS: Distrug sesiunile vechi...");
     try {
-        model = await mobilenet.load();
-        console.log("🛡️ NEXUS: Model Vizual Activat.");
-    } catch (e) { console.log("Eroare AI"); }
+        await bot.deleteWebHook({ drop_pending_updates: true });
+        console.log("🛡️ NEXUS: Sesiuni curățate.");
+        bot.startPolling(); 
+    } catch (e) {
+        console.log("Eroare la curățare:", e.message);
+    }
 }
-initAI();
 
-// Curățare forțată a conflictului 409
-bot.deleteWebHook({ drop_pending_updates: true });
+forceStart();
 
 bot.on('message', async (msg) => {
+    if (!msg.text) return;
     const chatId = msg.chat.id;
-    if (!msg.text && !msg.photo) return;
-
-    // 1. VIZIUNE (FOTO)
-    if (msg.photo) {
-        try {
-            const fileLink = await bot.getFileLink(msg.photo[msg.photo.length - 1].file_id);
-            const { data: { text } } = await Tesseract.recognize(fileLink, 'eng');
-            const response = await axios.get(fileLink, { responseType: 'arraybuffer' });
-            const predictions = await model.classify(tf.node.decodeImage(Buffer.from(response.data)));
-            
-            return bot.sendMessage(chatId, `🤖 VĂD: ${predictions[0].className}\n📝 TEXT: ${text.trim() || "Nimic"}`);
-        } catch (e) { return bot.sendMessage(chatId, "❌ Eroare vizuală."); }
-    }
-
     const input = msg.text.trim();
 
-    // 2. METEO (Cuvânt cheie: "vremea")
     if (input.toLowerCase().includes("vremea")) {
         const oras = input.split(" ").pop();
         try {
@@ -50,18 +35,13 @@ bot.on('message', async (msg) => {
         } catch (e) { return bot.sendMessage(chatId, "❌ Oraș negăsit."); }
     }
 
-    // 3. INTELIGENȚĂ (Groq)
     try {
         const chat = await groq.chat.completions.create({
             messages: [{ role: 'user', content: input }],
             model: 'llama3-8b-8192'
         });
         bot.sendMessage(chatId, chat.choices[0].message.content);
-    } catch (e) { bot.sendMessage(chatId, "⚠️ Groq Offline."); }
+    } catch (e) { bot.sendMessage(chatId, "⚠️ Eroare Groq."); }
 });
 
-// SERVER PORT 10000 - FIX PENTRU RENDER TIMEOUT
-http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('NEXUS CORE ONLINE');
-}).listen(process.env.PORT || 10000, '0.0.0.0');
+http.createServer((req, res) => { res.end('Nexus Active'); }).listen(process.env.PORT || 10000);
