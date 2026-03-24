@@ -1,7 +1,7 @@
 {
   "name": "sentinel-nexus",
   "version": "1.0.0",
-  "description": "Sentinel Core V1.0 - Hybrid Engine with Vision",
+  "description": "Sentinel Core V1.0 - Hybrid Vision",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
