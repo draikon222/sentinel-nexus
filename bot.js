@@ -1,37 +1,43 @@
-const Tesseract = require('tesseract.js');
 const TelegramBot = require('node-telegram-bot-api');
+const Tesseract = require('tesseract.js');
 const http = require('http');
 
-const token = process.env.TELEGRAM_TOKEN; 
+// Folosim variabila ta salvată: TELEGRAM_TOKEN
+const token = process.env.TELEGRAM_TOKEN;
 
-// SETARE CRITICĂ: 'polling: { interval: 2000 }' reduce riscul de conflict 409
 const bot = new TelegramBot(token, {
-    polling: {
-        autoStart: true,
-        params: { timeout: 10 }
-    }
+  polling: {
+    autoStart: true,
+    params: { timeout: 10 }
+  }
 });
 
+// Forțăm curățarea la pornire ca să nu mai ai eroarea 409 Conflict
 bot.deleteWebHook().then(() => {
-    console.log("🛡️ Webhook curățat. Nexus a câștigat conflictul 409.");
+    console.log("🛡️ NEXUS: Webhook curățat. Ascult acum...");
 });
 
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "🛡️ Nexus Online. Trimite screenshot-ul!");
+    bot.sendMessage(msg.chat.id, "🛡️ NEXUS ONLINE. Sunt gata de scanat SOL!");
 });
 
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
+    bot.sendMessage(chatId, "🔍 Nexus analizează poza...");
     try {
         const fileId = msg.photo[msg.photo.length - 1].file_id;
         const fileLink = await bot.getFileLink(fileId);
         const { data: { text } } = await Tesseract.recognize(fileLink, 'eng');
-        bot.sendMessage(chatId, "✅ Rezultat scanare:\n" + text.substring(0, 200));
-    } catch (e) { bot.sendMessage(chatId, "❌ Eroare Vision."); }
+        bot.sendMessage(chatId, "✅ REZULTAT SCANARE:\n" + text.substring(0, 300));
+    } catch (e) {
+        bot.sendMessage(chatId, "❌ Eroare la citirea pozei.");
+    }
 });
 
-// Serverul pentru Render să nu mai dea eroarea roz de port
+// Serverul care păcălește Render să rămână "Live"
 http.createServer((req, res) => {
     res.writeHead(200);
-    res.end('Nexus Active');
+    res.end('Nexus Bot is Running');
 }).listen(process.env.PORT || 3000);
+
+console.log("🚀 Server fantomă pornit pe portul " + (process.env.PORT || 3000));
