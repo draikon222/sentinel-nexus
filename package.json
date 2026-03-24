@@ -1,14 +1,11 @@
 {
-  "name": "nexus-final-fix",
+  "name": "sentinel-nexus",
   "version": "5.0.0",
   "main": "bot.js",
   "scripts": { "start": "node bot.js" },
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0",
-    "groq-sdk": "^0.3.0",
-    "axios": "^1.6.0",
-    "tesseract.js": "^5.0.0",
-    "@tensorflow/tfjs-node": "^4.17.0",
-    "@tensorflow-models/mobilenet": "^2.1.1"
+    "mongoose": "^8.0.0",
+    "axios": "^1.6.0"
   }
 }
