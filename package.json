@@ -1,16 +1,19 @@
 {
-  "name": "sentinel-nexus",
-  "version": "1.0.0",
-  "description": "Sentinel Core V1.0 - Hybrid Vision Engine",
+  "name": "sentinel-nexus-vision",
+  "version": "1.1.0",
+  "description": "Nexus Universal Vision Engine",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0",
-    "tesseract.js": "^5.0.0"
+    "tesseract.js": "^5.0.0",
+    "@tensorflow/tfjs-node": "^4.17.0",
+    "@tensorflow-models/mobilenet": "^2.1.1",
+    "axios": "^1.6.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   }
 }
