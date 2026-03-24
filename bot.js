@@ -1,58 +1,77 @@
 const TelegramBot = require('node-telegram-bot-api');
+const Tesseract = require('tesseract.js');
+const tf = require('@tensorflow/tfjs-node');
+const mobilenet = require('@tensorflow-models/mobilenet');
 const Groq = require('groq-sdk');
 const axios = require('axios');
 const http = require('http');
 
-// CONFIGURARE
-const TELEGRAM_TOKEN = 'AICI_PUI_NOUL_TOKEN_DE_LA_BOTFATHER'; // <--- SCHIMBĂ-L PE ĂSTA!
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+// CITIRE DIRECTĂ DIN RENDER (Fără trim pe undefined)
+const token = process.env.TELEGRAM_TOKEN ? process.env.TELEGRAM_TOKEN.trim() : '';
+const groqKey = process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.trim() : '';
+const weatherKey = process.env.WEATHER_API_KEY ? process.env.WEATHER_API_KEY.trim() : '';
 
-const groq = new Groq({ 
-    apiKey: (process.env.GROQ_API_KEY || '').trim() 
-});
+if (!token) {
+    console.error("❌ EROARE: TELEGRAM_TOKEN nu este setat în Render!");
+    process.exit(1);
+}
 
-// CURĂȚARE SESIUNI VECHI (Antidot pentru eroarea 409)
+const bot = new TelegramBot(token, { polling: true });
+const groq = new Groq({ apiKey: groqKey });
+
+let visionModel;
+async function loadVision() {
+    try {
+        visionModel = await mobilenet.load();
+        console.log("🛡️ NEXUS: Viziune Online.");
+    } catch (e) { console.log("❌ Eroare Model Vizual"); }
+}
+loadVision();
+
 bot.deleteWebHook({ drop_pending_updates: true }).then(() => {
-    console.log("🛡️ NEXUS: Token nou activat. Sistemul e LIVE pe Llama 3.1.");
+    console.log("🛡️ NEXUS: Sesiuni curățate. Sistem activ pe Llama 3.1.");
 });
 
 bot.on('message', async (msg) => {
-    if (!msg.text) return;
     const chatId = msg.chat.id;
-    const input = msg.text.trim();
+    if (!msg.text && !msg.photo) return;
 
-    // 🌦️ LOGICĂ METEO
-    if (input.toLowerCase().startsWith("vremea")) {
-        const oras = input.replace(/vremea in|vremea în|vremea/gi, "").trim();
-        if (!oras) return bot.sendMessage(chatId, "Zi-mi și orașul (ex: vremea Vaslui).");
-
+    // --- LOGICĂ VIZIUNE ---
+    if (msg.photo) {
         try {
-            const wUrl = `https://api.openweathermap.org/data/2.5/weather?q=${oras}&units=metric&appid=${process.env.WEATHER_API_KEY.trim()}&lang=ro`;
-            const res = await axios.get(wUrl);
-            const d = res.data;
-            return bot.sendMessage(chatId, `🌦️ În ${d.name.toUpperCase()}: ${d.weather[0].description}, 🌡️ ${d.main.temp}°C.`);
-        } catch (e) { 
-            return bot.sendMessage(chatId, `❌ Nu am găsit informații pentru: ${oras}`); 
-        }
+            const fileId = msg.photo[msg.photo.length - 1].file_id;
+            const fileLink = await bot.getFileLink(fileId);
+            bot.sendMessage(chatId, "🔍 Nexus analizează imaginea...");
+            
+            const { data: { text } } = await Tesseract.recognize(fileLink, 'eng+ron');
+            const response = await axios.get(fileLink, { responseType: 'arraybuffer' });
+            const predictions = await visionModel.classify(tf.node.decodeImage(Buffer.from(response.data)));
+
+            return bot.sendMessage(chatId, `🤖 ANALIZĂ:\n✅ OBIECT: ${predictions[0].className}\n✅ TEXT: ${text.trim() || "Nimic"}`);
+        } catch (e) { return bot.sendMessage(chatId, "❌ Eroare vizuală."); }
     }
 
-    // 🧠 INTELIGENȚĂ AI (Llama 3.1 - Verificat)
+    const input = msg.text.trim();
+
+    // --- LOGICĂ METEO ---
+    if (input.toLowerCase().includes("vremea")) {
+        const oras = input.split(" ").pop();
+        try {
+            const res = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${oras}&units=metric&appid=${weatherKey}&lang=ro`);
+            return bot.sendMessage(chatId, `🌦️ În ${res.data.name}: ${res.data.weather[0].description}, ${res.data.main.temp}°C.`);
+        } catch (e) { return bot.sendMessage(chatId, "❌ Oraș negăsit."); }
+    }
+
+    // --- LOGICĂ AI (Llama 3.1) ---
     try {
-        const chatCompletion = await groq.chat.completions.create({
+        const chat = await groq.chat.completions.create({
             messages: [{ role: 'user', content: input }],
-            model: 'llama-3.1-8b-instant', // Modelul nou care a înlocuit versiunea scoasă
-            temperature: 0.7,
+            model: 'llama-3.1-8b-instant'
         });
-        const raspuns = chatCompletion.choices[0].message.content;
-        bot.sendMessage(chatId, raspuns);
+        bot.sendMessage(chatId, chat.choices[0].message.content);
     } catch (err) {
-        console.error("Eroare Groq:", err.message);
-        bot.sendMessage(chatId, `🚨 EROARE GROQ: ${err.message}`);
+        bot.sendMessage(chatId, `🚨 Eroare AI: ${err.message}`);
     }
 });
 
-// Server obligatoriu pentru Render
-http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('NEXUS STABLE IS RUNNING');
-}).listen(process.env.PORT || 10000);
+http.createServer((req, res) => { res.end('Nexus Stable'); }).listen(process.env.PORT || 10000);
