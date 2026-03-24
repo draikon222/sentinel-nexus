@@ -1,7 +1,7 @@
 {
   "name": "sentinel-nexus",
   "version": "1.0.0",
-  "description": "Sentinel Core V1.0 - AI with Vision Capabilities",
+  "description": "Sentinel Core V1.0 - Hybrid Engine with Vision",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
@@ -11,6 +11,6 @@
     "tesseract.js": "^5.0.0"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=16.0.0"
   }
 }
