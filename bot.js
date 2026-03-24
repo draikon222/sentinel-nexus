@@ -1,4 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
+const Groq = require('groq-sdk');
 const mongoose = require('mongoose');
 const axios = require('axios');
 const http = require('http');
@@ -6,51 +7,66 @@ const http = require('http');
 // Încărcăm variabilele tale din Render
 const token = process.env.TELEGRAM_TOKEN;
 const mongoUri = process.env.MONGO_URI;
-const openRouterKey = process.env.OPENROUTER_KEY;
+const groqKey = process.env.GROQ_API_KEY;
 const weatherKey = process.env.WEATHER_API_KEY;
 
-const bot = new TelegramBot(token, { polling: true });
-
-// Conectare MongoDB (Memoria lui Nexus)
+// 1. CONECTARE MONGODB (Memorie Persistentă)
 mongoose.connect(mongoUri)
-    .then(() => console.log("✅ Bază de date conectată"))
+    .then(() => console.log("✅ Bază de date MongoDB conectată"))
     .catch(err => console.error("❌ Eroare DB:", err));
 
 const User = mongoose.model('User', new mongoose.Schema({
-    chatId: Number,
+    chatId: { type: Number, unique: true },
+    username: String,
     balance: { type: Number, default: 0 }
 }));
+
+// 2. CONFIGURARE BOT (Forțăm curățarea conflictelor 409)
+const bot = new TelegramBot(token, { polling: true });
+const groq = new Groq({ apiKey: groqKey });
+
+// Ștergem orice webhook vechi care ar putea cauza Conflict 409
+bot.deleteWebHook({ drop_pending_updates: true });
 
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     if (!msg.text) return;
+    const input = msg.text.trim();
 
-    // Salvăm user-ul imediat
-    await User.findOneAndUpdate({ chatId }, { chatId }, { upsert: true });
+    // Înregistrăm user-ul în baza de date
+    await User.findOneAndUpdate({ chatId }, { chatId, username: msg.from.username }, { upsert: true });
 
-    // 1. Logica Meteo (Folosind cheia ta)
-    if (msg.text.toLowerCase().includes("vremea")) {
+    // 3. COMANDA METEO (Folosind cheia ta)
+    if (input.toLowerCase().startsWith("vremea")) {
+        const oras = input.replace(/vremea in|vremea în|vremea/gi, "").trim() || "Vaslui";
         try {
-            const res = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=Vaslui&units=metric&appid=${weatherKey}&lang=ro`);
-            return bot.sendMessage(chatId, `🌡️ În ${res.data.name}: ${res.data.main.temp}°C.`);
-        } catch (e) { return bot.sendMessage(chatId, "❌ Eroare Meteo."); }
+            const res = await axios.get(`https://api.openweathermap.org/data/2.5/weather?q=${oras}&units=metric&appid=${weatherKey}&lang=ro`);
+            const d = res.data;
+            return bot.sendMessage(chatId, `🌦️ În ${d.name}: ${d.weather[0].description}, 🌡️ ${d.main.temp}°C.`);
+        } catch (e) {
+            return bot.sendMessage(chatId, `❌ Nu am găsit vremea pentru: ${oras}`);
+        }
     }
 
-    // 2. Creierul OpenRouter (Folosind cheia ta)
+    // 4. CREIERUL GROQ (Rapid și stabil)
     try {
-        const response = await axios.post("https://openrouter.ai/api/v1/chat/completions", {
-            model: "google/gemini-flash-1.5-exp", // Rapid și moca
-            messages: [{ role: "user", content: msg.text }]
-        }, {
-            headers: { "Authorization": `Bearer ${openRouterKey}`, "Content-Type": "application/json" }
+        const chatCompletion = await groq.chat.completions.create({
+            messages: [{ role: 'user', content: input }],
+            model: 'llama-3.1-8b-instant', // Modelul tău ultra-rapid
+            temperature: 0.7
         });
-        
-        const aiReply = response.data.choices[0].message.content;
-        bot.sendMessage(chatId, aiReply);
+        bot.sendMessage(chatId, chatCompletion.choices[0].message.content);
     } catch (err) {
-        bot.sendMessage(chatId, "⚠️ Creierul e ocupat, revin imediat.");
+        console.error("Eroare Groq:", err.message);
+        bot.sendMessage(chatId, "⚠️ Eroare temporară la AI. Încearcă din nou.");
     }
 });
 
-// Păstrăm serverul viu pe Render
-http.createServer((req, res) => res.end('NEXUS ONLINE')).listen(process.env.PORT || 10000);
+// Păstrăm serverul viu pe Render pentru a evita Sleep
+http.createServer((req, res) => {
+    res.writeHead(200);
+    res.end('NEXUS GROQ DB ACTIVE');
+}).listen(process.env.PORT || 10000);
+
+// Tratăm erorile de Polling fără să crape botul
+bot.on('polling_error', (err) => console.log("Se reconectează..."));
