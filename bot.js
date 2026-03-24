@@ -2,42 +2,25 @@ const TelegramBot = require('node-telegram-bot-api');
 const Tesseract = require('tesseract.js');
 const http = require('http');
 
-// Folosim variabila ta salvată: TELEGRAM_TOKEN
 const token = process.env.TELEGRAM_TOKEN;
+const bot = new TelegramBot(token, {polling: true});
 
-const bot = new TelegramBot(token, {
-  polling: {
-    autoStart: true,
-    params: { timeout: 10 }
-  }
-});
+bot.deleteWebHook().then(() => { console.log("🛡️ NEXUS ACTIV"); });
 
-// Forțăm curățarea la pornire ca să nu mai ai eroarea 409 Conflict
-bot.deleteWebHook().then(() => {
-    console.log("🛡️ NEXUS: Webhook curățat. Ascult acum...");
-});
-
-bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "🛡️ NEXUS ONLINE. Sunt gata de scanat SOL!");
+bot.on('message', (msg) => {
+    if (msg.text === '/start') bot.sendMessage(msg.chat.id, "🛡️ ONLINE. Trimite poza!");
 });
 
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "🔍 Nexus analizează poza...");
+    bot.sendMessage(chatId, "🔍 Scanare...");
     try {
-        const fileId = msg.photo[msg.photo.length - 1].file_id;
-        const fileLink = await bot.getFileLink(fileId);
+        const fileLink = await bot.getFileLink(msg.photo[msg.photo.length - 1].file_id);
         const { data: { text } } = await Tesseract.recognize(fileLink, 'eng');
-        bot.sendMessage(chatId, "✅ REZULTAT SCANARE:\n" + text.substring(0, 300));
-    } catch (e) {
-        bot.sendMessage(chatId, "❌ Eroare la citirea pozei.");
-    }
+        bot.sendMessage(chatId, "✅ REZULTAT: " + text.substring(0, 100));
+    } catch (e) { bot.sendMessage(chatId, "❌ Eroare."); }
 });
 
-// Serverul care păcălește Render să rămână "Live"
-http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('Nexus Bot is Running');
-}).listen(process.env.PORT || 3000);
-
-console.log("🚀 Server fantomă pornit pe portul " + (process.env.PORT || 3000));
+// SERVERUL FIX PENTRU PORTUL 10000
+http.createServer((req, res) => { res.writeHead(200); res.end('OK'); })
+    .listen(10000, '0.0.0.0', () => { console.log("🚀 Port 10000 deschis!"); });
