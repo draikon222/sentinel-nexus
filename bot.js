@@ -10,74 +10,69 @@ const bot = new TelegramBot(token, { polling: true });
 
 let model;
 
-// Încărcare Model AI pentru obiecte
+// Creierul AI - Încarcă modelul pentru recunoașterea obiectelor (copaci, oameni, etc.)
 async function loadModel() {
     try {
         model = await mobilenet.load();
-        console.log("🛡️ NEXUS: Creier vizual universal activat.");
+        console.log("🛡️ NEXUS: Sistem de viziune universală online.");
     } catch (e) {
-        console.error("❌ Eroare la încărcarea modelului AI.");
+        console.error("❌ Eroare încărcare AI.");
     }
 }
 loadModel();
 
-// Curățare Webhook la pornire pentru a evita eroarea 409 Conflict
+// Curățăm orice sesiune veche (Eroarea 409)
 bot.deleteWebHook().then(() => {
-    console.log("🛡️ NEXUS: Conexiune curățată. Ascult mesaje...");
+    console.log("🛡️ NEXUS: Conexiune resetată.");
 });
 
-// Comanda /start
 bot.onText(/\/start/, (msg) => {
-    bot.sendMessage(msg.chat.id, "🛡️ Nexus Online. Trimite orice poză și îți voi spune ce văd și ce scrie în ea.");
+    bot.sendMessage(msg.chat.id, "🛡️ Nexus Online. Trimite orice poză; identific obiectele și citesc textul.");
 });
 
-// Procesare Poze (Recunoaștere Universală)
 bot.on('photo', async (msg) => {
     const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "🔍 Nexus analizează imaginea...");
+    bot.sendMessage(chatId, "🔍 Analizez complet imaginea...");
 
     try {
         const fileId = msg.photo[msg.photo.length - 1].file_id;
         const fileLink = await bot.getFileLink(fileId);
 
-        // 1. Recunoaștere Obiecte (Copaci, Oameni, etc.)
+        // --- Analiză Obiecte ---
         const response = await axios.get(fileLink, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(response.data);
         const imageTensor = tf.node.decodeImage(imageBuffer);
         const predictions = await model.classify(imageTensor);
         
-        // 2. Recunoaștere Text (Orice text detectat)
+        // --- Analiză Text ---
         const { data: { text } } = await Tesseract.recognize(fileLink, 'eng');
 
-        let raport = "🛡️ **RAPORT VIZUAL NEXUS**\n\n";
-        
-        raport += "🤖 **OBIECTE IDENTIFICATE:**\n";
+        let raport = "🛡️ **RAPORT NEXUS**\n\n🤖 **VĂD:**\n";
         predictions.forEach(p => {
-            raport += `- ${p.className} (siguranță ${(p.probability * 100).toFixed(1)}%)\n`;
+            raport += `- ${p.className} (${(p.probability * 100).toFixed(1)}%)\n`;
         });
 
         raport += "\n📝 **TEXT DETECTAT:**\n";
         raport += (text && text.trim().length > 0) ? text.trim() : "Nu am detectat text.";
 
         bot.sendMessage(chatId, raport);
-        imageTensor.dispose(); // Eliberare memorie pentru Render
+        imageTensor.dispose(); 
     } catch (e) {
-        bot.sendMessage(chatId, "❌ Eroare la analiză. Încearcă o poză mai clară.");
-        console.error(e);
+        bot.sendMessage(chatId, "❌ Eroare la procesarea vizuală.");
     }
 });
 
-// Răspuns la mesaje text normale
+// Răspunde la orice mesaj text (Funcție păstrată conform cerinței)
 bot.on('message', (msg) => {
     if (msg.text && !msg.text.startsWith('/')) {
-        bot.sendMessage(msg.chat.id, "Sunt aici. Dacă vrei să analizez ceva, trimite o poză.");
+        bot.sendMessage(msg.chat.id, "Sunt aici. Trimite o poză clară pentru analiză.");
     }
 });
 
-// Server obligatoriu pentru portul 10000 pe Render
+// Portul 10000 fix pentru Render (Rezolvă eroarea roz)
 http.createServer((req, res) => {
     res.writeHead(200);
-    res.end('Nexus Bot is Live');
+    res.end('Nexus Live');
 }).listen(10000, '0.0.0.0', () => {
-    console.log("🚀 Server de port 10000 activ.");
+    console.log("🚀 Server port 10000 activ.");
 });
