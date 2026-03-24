@@ -1,7 +1,7 @@
 {
-  "name": "sentinel-nexus-vision",
-  "version": "1.1.0",
-  "description": "Nexus Universal Vision Engine",
+  "name": "sentinel-nexus-universal",
+  "version": "1.2.0",
+  "description": "Nexus Vision Engine - Universal Detection",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
