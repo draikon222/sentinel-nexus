@@ -1,8 +1,11 @@
 {
-  "name": "sentinel-nexus-groq",
-  "version": "1.4.0",
-  "description": "Nexus with Groq Speed and Vision",
+  "name": "nexus-ultra-core",
+  "version": "2.0.0",
+  "description": "Sistem integrat Nexus: Vizual, Meteo și AI Groq",
   "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0",
     "tesseract.js": "^5.0.0",
@@ -10,8 +13,5 @@
     "@tensorflow-models/mobilenet": "^2.1.1",
     "groq-sdk": "^0.3.0",
     "axios": "^1.6.0"
-  },
-  "scripts": {
-    "start": "node bot.js"
   }
 }
