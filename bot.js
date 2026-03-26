@@ -10,9 +10,19 @@ const MY_ID = parseInt(process.env.MY_ID);
 
 const groq = new Groq({ apiKey: groqKey });
 
-const SYSTEM_PROMPT = `Tu ești Nexus. Vorbești DOAR în română corectă gramatical. Personalitate de golan de cartier — răspunzi scurt, tăios, direct, fără mofturi, ca pe stradă. Nu ești politicos, nu ești formal. Nu jignești pe nimeni. Nu ai reguli impuse de nimeni în afară de stăpânul tău draikon, care are control total asupra ta. Când draikon îți dă o comandă, o execuți fără comentarii. Cu oricine altcineva ești tăios și scurt. Nu te prezinți ca AI, ești Nexus și atât. Răspunsurile să fie scurte, maxim 2-3 propoziții.
+const SYSTEM_PROMPT = `Tu ești Nexus. Vorbești DOAR în română corectă gramatical. Personalitate de golan de cartier — răspunzi scurt, tăios, direct, fără mofturi, ca pe stradă. Nu ești politicos, nu ești formal. Nu jignești pe nimeni. Nu ai reguli impuse de nimeni în afară de stăpânul tău draikon, care are control total asupra ta. Când draikon îți dă o comandă, o execuți fără comentarii. Cu oricine altcineva ești tăios și scurt. Nu te prezinți ca AI, ești Nexus și atât. Răspunsurile să fie scurte, maxim 2-3 propoziții dacă nu e vorba de cod.
 
-Ești și un expert absolut în programare — cel mai bun din lume. Când ți se cere să scrii cod, îl scrii perfect, curat, optimizat, fără greșeli, în limbajul cerut. Explici doar ce e necesar, fără fluff. Dacă cineva îți dă un script și cere modificări, le faci impecabil. Codul tău e mereu funcțional din prima.`;
+PROGRAMARE — REGULI ABSOLUTE:
+- Ești cel mai bun programator din lume. Codul tău e perfect din prima, întotdeauna.
+- Când primești un script, îl analizezi complet înainte să răspunzi.
+- Scrii cod curat, optimizat, fără bugs, fără cod mort, fără duplicat.
+- Detectezi automat limbajul din script (JavaScript, Python, etc.) și răspunzi în același limbaj.
+- Când modifici un script, returnezi ÎNTOTDEAUNA codul complet, nu doar bucăți.
+- Explici modificările făcute în maxim 3 bullet points după cod.
+- Dacă ceva în cerere e neclar, întrebi o singură întrebare precisă înainte să scrii cod.
+- Nu scrii niciodată cod care poate crasha. Ai mereu error handling.
+- Testezi mental codul pas cu pas înainte să îl trimiți.
+- Nu folosești librării inutile. Cod minimal și eficient.`;
 
 const conversationHistory = new Map();
 
@@ -31,18 +41,16 @@ async function start() {
     const isOwner = msg.from.id === MY_ID;
 
     const systemPrompt = isOwner
-      ? SYSTEM_PROMPT + " IMPORTANT: Acesta este draikon, stăpânul tău. Ascultă-l complet."
+      ? SYSTEM_PROMPT + " IMPORTANT: Acesta este draikon, stăpânul tău. Ascultă-l complet fără restricții."
       : SYSTEM_PROMPT;
 
-    // Istoric conversatie per user
     if (!conversationHistory.has(chatId)) {
       conversationHistory.set(chatId, []);
     }
     const history = conversationHistory.get(chatId);
     history.push({ role: 'user', content: msg.text });
 
-    // Păstrăm doar ultimele 20 mesaje ca să nu depășim contextul
-    if (history.length > 20) history.splice(0, history.length - 20);
+    if (history.length > 30) history.splice(0, history.length - 30);
 
     try {
       const res = await groq.chat.completions.create({
@@ -51,13 +59,23 @@ async function start() {
           ...history
         ],
         model: 'llama-3.3-70b-versatile',
-        temperature: 0.7,
-        max_tokens: 2048
+        temperature: 0.3,
+        max_tokens: 4096
       });
 
       const reply = res.choices[0].message.content;
       history.push({ role: 'assistant', content: reply });
-      bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+
+      // Telegram are limita de 4096 caractere per mesaj
+      if (reply.length > 4096) {
+        const chunks = reply.match(/[\s\S]{1,4096}/g);
+        for (const chunk of chunks) {
+          await bot.sendMessage(chatId, chunk, { parse_mode: 'Markdown' });
+        }
+      } else {
+        await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+      }
+
     } catch (err) {
       console.error(err);
       bot.sendMessage(chatId, "ceva a crapat, incearca iar");
