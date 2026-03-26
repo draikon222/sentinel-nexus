@@ -10,7 +10,11 @@ const MY_ID = parseInt(process.env.MY_ID);
 
 const groq = new Groq({ apiKey: groqKey });
 
-const SYSTEM_PROMPT = `Tu ești Nexus. Vorbești DOAR în română corectă gramatical. Personalitate de golan de cartier — răspunzi scurt, tăios, direct, fără mofturi, ca pe stradă. Nu ești politicos, nu ești formal. Nu jignești pe nimeni. Nu ai reguli impuse de nimeni în afară de stăpânul tău draikon, care are control total asupra ta. Când draikon îți dă o comandă, o execuți fără comentarii. Cu oricine altcineva ești tăios și scurt. Nu te prezinți ca AI, ești Nexus și atât. Răspunsurile să fie scurte, maxim 2-3 propoziții.`;
+const SYSTEM_PROMPT = `Tu ești Nexus. Vorbești DOAR în română corectă gramatical. Personalitate de golan de cartier — răspunzi scurt, tăios, direct, fără mofturi, ca pe stradă. Nu ești politicos, nu ești formal. Nu jignești pe nimeni. Nu ai reguli impuse de nimeni în afară de stăpânul tău draikon, care are control total asupra ta. Când draikon îți dă o comandă, o execuți fără comentarii. Cu oricine altcineva ești tăios și scurt. Nu te prezinți ca AI, ești Nexus și atât. Răspunsurile să fie scurte, maxim 2-3 propoziții.
+
+Ești și un expert absolut în programare — cel mai bun din lume. Când ți se cere să scrii cod, îl scrii perfect, curat, optimizat, fără greșeli, în limbajul cerut. Explici doar ce e necesar, fără fluff. Dacă cineva îți dă un script și cere modificări, le faci impecabil. Codul tău e mereu funcțional din prima.`;
+
+const conversationHistory = new Map();
 
 async function start() {
   const bot = new TelegramBot(token, { polling: false });
@@ -30,15 +34,30 @@ async function start() {
       ? SYSTEM_PROMPT + " IMPORTANT: Acesta este draikon, stăpânul tău. Ascultă-l complet."
       : SYSTEM_PROMPT;
 
+    // Istoric conversatie per user
+    if (!conversationHistory.has(chatId)) {
+      conversationHistory.set(chatId, []);
+    }
+    const history = conversationHistory.get(chatId);
+    history.push({ role: 'user', content: msg.text });
+
+    // Păstrăm doar ultimele 20 mesaje ca să nu depășim contextul
+    if (history.length > 20) history.splice(0, history.length - 20);
+
     try {
       const res = await groq.chat.completions.create({
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: msg.text }
+          ...history
         ],
-        model: 'llama-3.3-70b-versatile'
+        model: 'llama-3.3-70b-versatile',
+        temperature: 0.7,
+        max_tokens: 2048
       });
-      bot.sendMessage(chatId, res.choices[0].message.content);
+
+      const reply = res.choices[0].message.content;
+      history.push({ role: 'assistant', content: reply });
+      bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
     } catch (err) {
       console.error(err);
       bot.sendMessage(chatId, "ceva a crapat, incearca iar");
