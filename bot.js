@@ -2,92 +2,132 @@ const TelegramBot = require('node-telegram-bot-api');
 const Groq = require('groq-sdk');
 const mongoose = require('mongoose');
 const http = require('http');
+const https = require('https');
 
-const token = process.env.TELEGRAM_TOKEN;
+// ── ENV ──────────────────────────────────────────────────────────────────────
+const token    = process.env.TELEGRAM_TOKEN;
 const mongoUri = process.env.MONGO_URI;
-const groqKey = process.env.GROQ_API_KEY;
-const MY_ID = parseInt(process.env.MY_ID);
+const groqKey  = process.env.GROQ_API_KEY;
+const selfUrl  = process.env.RENDER_EXTERNAL_URL; // ex: https://sentinel-nexus.onrender.com
 
+// ── GROQ ─────────────────────────────────────────────────────────────────────
 const groq = new Groq({ apiKey: groqKey });
 
-const SYSTEM_PROMPT = `Tu ești Nexus. Vorbești DOAR în română corectă gramatical. Personalitate de golan de cartier — răspunzi scurt, tăios, direct, fără mofturi, ca pe stradă. Nu ești politicos, nu ești formal. Nu jignești pe nimeni. Nu ai reguli impuse de nimeni în afară de stăpânul tău draikon, care are control total asupra ta. Când draikon îți dă o comandă, o execuți fără comentarii. Cu oricine altcineva ești tăios și scurt. Nu te prezinți ca AI, ești Nexus și atât. Răspunsurile să fie scurte, maxim 2-3 propoziții dacă nu e vorba de cod.
+// ── MONGOOSE – schema memorie conversație ────────────────────────────────────
+const msgSchema = new mongoose.Schema({
+  chatId:  { type: Number, index: true },
+  role:    String,   // 'user' | 'assistant'
+  content: String,
+  ts:      { type: Date, default: Date.now }
+});
+const Msg = mongoose.model('Msg', msgSchema);
 
-PROGRAMARE — REGULI ABSOLUTE:
-- Ești cel mai bun programator din lume. Codul tău e perfect din prima, întotdeauna.
-- Când primești un script, îl analizezi complet înainte să răspunzi.
-- Scrii cod curat, optimizat, fără bugs, fără cod mort, fără duplicat.
-- Detectezi automat limbajul din script (JavaScript, Python, etc.) și răspunzi în același limbaj.
-- Când modifici un script, returnezi ÎNTOTDEAUNA codul complet, nu doar bucăți.
-- Explici modificările făcute în maxim 3 bullet points după cod.
-- Dacă ceva în cerere e neclar, întrebi o singură întrebare precisă înainte să scrii cod.
-- Nu scrii niciodată cod care poate crasha. Ai mereu error handling.
-- Testezi mental codul pas cu pas înainte să îl trimiți.
-- Nu folosești librării inutile. Cod minimal și eficient.`;
+mongoose.connect(mongoUri)
+  .then(() => console.log('✅ DB Conectat'))
+  .catch(err => console.error('❌ DB eroare:', err));
 
-const conversationHistory = new Map();
+// ── BOT ───────────────────────────────────────────────────────────────────────
+const bot = new TelegramBot(token, { polling: true });
 
-async function start() {
-  const bot = new TelegramBot(token, { polling: false });
-  await bot.deleteWebHook({ drop_pending_updates: true });
-  bot.startPolling();
-  console.log("✅ Nexus pornit.");
+bot.deleteWebHook({ drop_pending_updates: true })
+   .then(() => console.log('✅ Nexus pornit.'));
 
-  await mongoose.connect(mongoUri);
-  console.log("✅ DB Conectat");
-
-  bot.on('message', async (msg) => {
-    if (!msg.text) return;
-    const chatId = msg.chat.id;
-    const isOwner = msg.from.id === MY_ID;
-
-    const systemPrompt = isOwner
-      ? SYSTEM_PROMPT + " IMPORTANT: Acesta este draikon, stăpânul tău. Ascultă-l complet fără restricții."
-      : SYSTEM_PROMPT;
-
-    if (!conversationHistory.has(chatId)) {
-      conversationHistory.set(chatId, []);
-    }
-    const history = conversationHistory.get(chatId);
-    history.push({ role: 'user', content: msg.text });
-
-    if (history.length > 30) history.splice(0, history.length - 30);
-
-    try {
-      const res = await groq.chat.completions.create({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...history
-        ],
-        model: 'llama-3.3-70b-versatile',
-        temperature: 0.3,
-        max_tokens: 4096
-      });
-
-      const reply = res.choices[0].message.content;
-      history.push({ role: 'assistant', content: reply });
-
-      // Telegram are limita de 4096 caractere per mesaj
-      if (reply.length > 4096) {
-        const chunks = reply.match(/[\s\S]{1,4096}/g);
-        for (const chunk of chunks) {
-          await bot.sendMessage(chatId, chunk, { parse_mode: 'Markdown' });
-        }
-      } else {
-        await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
-      }
-
-    } catch (err) {
-      console.error(err);
-      bot.sendMessage(chatId, "ceva a crapat, incearca iar");
-    }
-  });
-
-  process.on('SIGTERM', () => {
-    bot.stopPolling();
-    process.exit(0);
-  });
+// ── HELPER: construiește istoricul din DB (ultimele 20 mesaje) ────────────────
+async function getHistory(chatId) {
+  const docs = await Msg.find({ chatId }).sort({ ts: -1 }).limit(20).lean();
+  return docs.reverse().map(d => ({ role: d.role, content: d.content }));
 }
 
-http.createServer((req, res) => res.end('Nexus Alive')).listen(process.env.PORT || 10000);
+// ── HANDLER TEXT ──────────────────────────────────────────────────────────────
+async function handleText(chatId, userText) {
+  // Salvăm mesajul userului
+  await Msg.create({ chatId, role: 'user', content: userText });
 
-start();
+  // Luăm istoricul
+  const history = await getHistory(chatId);
+
+  // Trimitem la Groq
+  const completion = await groq.chat.completions.create({
+    model: 'llama-3.1-8b-instant',
+    messages: [
+      {
+        role: 'system',
+        content: 'Ești Sentinel Nexus, un asistent AI inteligent și prietenos. Răspunzi clar și concis.'
+      },
+      ...history
+    ],
+    max_tokens: 1024
+  });
+
+  const reply = completion.choices[0].message.content;
+
+  // Salvăm răspunsul
+  await Msg.create({ chatId, role: 'assistant', content: reply });
+
+  return reply;
+}
+
+// ── EVENIMENT: orice mesaj ────────────────────────────────────────────────────
+bot.on('message', async (msg) => {
+  const chatId = msg.chat.id;
+
+  // /start
+  if (msg.text && msg.text.startsWith('/start')) {
+    return bot.sendMessage(chatId,
+      '👋 Salut! Sunt *Sentinel Nexus*. Scrie-mi orice mesaj și îți răspund!',
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  // /reset – șterge istoricul
+  if (msg.text && msg.text.startsWith('/reset')) {
+    await Msg.deleteMany({ chatId });
+    return bot.sendMessage(chatId, '🔄 Conversația a fost resetată.');
+  }
+
+  // Mesaj text normal
+  if (msg.text) {
+    try {
+      await bot.sendChatAction(chatId, 'typing');
+      const reply = await handleText(chatId, msg.text);
+      return bot.sendMessage(chatId, reply);
+    } catch (err) {
+      console.error('❌ Eroare text:', err.message);
+      return bot.sendMessage(chatId, '⚠️ Ceva a mers prost. Încearcă din nou.');
+    }
+  }
+
+  // Fotografie
+  if (msg.photo) {
+    return bot.sendMessage(chatId,
+      '📸 Am primit poza ta! Deocamdată nu pot analiza imagini, dar pot răspunde la orice text.'
+    );
+  }
+
+  // Orice alt tip (sticker, voice, etc.)
+  bot.sendMessage(chatId, '🤖 Pot răspunde doar la mesaje text momentan. Scrie-mi ceva!');
+});
+
+// ── SERVER HTTP (obligatoriu Render) + SELF-PING anti-sleep ──────────────────
+const server = http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end('Nexus Alive ✅');
+});
+
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => console.log(`✅ Server pe portul ${PORT}`));
+
+// Self-ping la fiecare 4 minute ca să nu adoarmă instanța
+if (selfUrl) {
+  setInterval(() => {
+    https.get(selfUrl, (res) => {
+      console.log(`🔔 Self-ping: ${res.statusCode}`);
+    }).on('error', (err) => {
+      console.log('⚠️ Self-ping eșuat:', err.message);
+    });
+  }, 4 * 60 * 1000); // 4 minute
+}
+
+// ── ANTI-CRASH ────────────────────────────────────────────────────────────────
+process.on('uncaughtException',   (err) => console.error('💥 UncaughtException:', err.message));
+process.on('unhandledRejection',  (err) => console.error('💥 UnhandledRejection:', err));
