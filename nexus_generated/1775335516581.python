@@ -1,0 +1,27 @@
+def scrie_cod(limbaj, problema):
+    # Generez codul în funcție de limbaj și problema
+    if limbaj == "python":
+        if problema == "calcularea sumei a două numere":
+            return """
+def suma(a, b):
+    return a + b
+
+print(suma(5, 7))
+            """
+    elif limbaj == "java":
+        if problema == "calcularea sumei a două numere":
+            return """
+public class Suma {
+    public static void main(String[] args) {
+        int a = 5;
+        int b = 7;
+        System.out.println(a + b);
+    }
+}
+            """
+    # Adaug mai multe cazuri aici...
+    else:
+        return "Limbajul specificat nu este suportat"
+
+# Exemplu de utilizare
+print(scrie_cod("python", "calcularea sumei a două numere"))
