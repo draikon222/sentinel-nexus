@@ -1,18 +1,29 @@
 {
-  "name": "nexus-bot",
+  "name": "nexus-v4-bot",
   "version": "4.0.0",
-  "main": "src/bot.js",
+  "description": "Arhitect de cod Nexus - Optimizat pentru Render Free",
+  "main": "bot.js",
   "scripts": {
-    "start": "node src/bot.js"
+    "start": "node bot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "telegram",
+    "bot",
+    "groq",
+    "nexus"
+  ],
+  "author": "Draikon",
+  "license": "ISC",
   "dependencies": {
     "node-telegram-bot-api": "^0.64.0",
     "groq-sdk": "^0.3.3",
-    "mongoose": "^8.3.4",
+    "mongoose": "^8.2.3",
     "express": "^4.19.2",
-    "busboy": "^1.6.0"
+    "busboy": "^1.6.0",
+    "dotenv": "^16.4.5"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=18.0.0"
   }
 }
