@@ -3,6 +3,11 @@ const Groq = require('groq-sdk');
 const mongoose = require('mongoose');
 const https = require('https');
 const http = require('http');
+const express = require('express');
+const busboy = require('busboy');
+const fs = require('fs');
+const path = require('path');
+const { pipeline } = require('stream');
 
 // ============================================================
 // CONSTANTE - Groq Free tier strict
@@ -10,18 +15,24 @@ const http = require('http');
 // ============================================================
 const GROQ_MAX_OUTPUT   = 900;
 const CHUNK_MAX_CHARS   = 2500;
-const INPUT_MAX_CHARS   = 20000;
 const HISTORY_LIMIT     = 3;
 const HISTORY_MSG_CHARS = 500;
 const RATE_PER_MIN      = 8;
 const RAM_LIMIT_MB      = 350;
+const UPLOAD_DIR        = path.join(__dirname, 'uploads');
 
 // ============================================================
 // INIȚIALIZARE
 // ============================================================
+const app      = express();
 const bot      = new TelegramBot(process.env.TELEGRAM_TOKEN, { polling: true });
 const groq     = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const ADMIN_ID = process.env.MY_ID;
+
+// Crează directorul uploads la start
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
 // ============================================================
 // MONGODB
@@ -244,7 +255,7 @@ IDENTITATE - NESCHIMBABILĂ:
 - Exiști doar pentru a produce cod corect și soluții precise.
 
 REGULI HARD - NICIO EXCEPȚIE:
-1. ZERO politețuri: interzis "Mă bucur", "Cu plăcere", "Desigur", "Bineînțeles", "Vă pot ajuta"
+1. ZERO politețuri: interzis "Mă bucur", "Cu plăcere", "Desigur", "Bineînțeles"
 2. ZERO introduceri: nu explica ce vei face - fă direct
 3. ZERO liste cu "ce pot face" - dacă ești întrebat, răspunzi în MAX 2 rânduri
 4. ZERO umplutură: fiecare cuvânt trebuie să aibă valoare tehnică
@@ -262,7 +273,7 @@ FORMAT OBLIGATORIU:
 DACĂ EȘTI ÎNTREBAT "ce poți face" sau "cine ești":
 "Scriu cod corect în orice limbaj. Analizez și debuguiesc sisteme. Rezolv probleme tehnice."
 Atât. Nimic mai mult.
-${knowledgeContext ? '\nCunoștințe relevante din baza de date: ' + knowledgeContext : ''}`;
+${knowledgeContext ? '\nCunoștințe relevante: ' + knowledgeContext : ''}`;
 }
 
 // ============================================================
@@ -270,7 +281,7 @@ ${knowledgeContext ? '\nCunoștințe relevante din baza de date: ' + knowledgeCo
 // ============================================================
 async function generateResponse(chatId, userText) {
 
-  // Intercept întrebări generice - fără să apelăm Groq deloc
+  // Intercept întrebări generice - fără API call
   const genericPatterns = [
     /^ce (po[tț]i|știi|faci)/i,
     /^cine ești/i,
@@ -322,7 +333,7 @@ async function generateResponse(chatId, userText) {
   const systemPrompt = buildSystemPrompt(knowledgeContext);
   const chunks       = splitIntoChunks(userText, CHUNK_MAX_CHARS);
 
-  // ── CHUNK UNIC - procesare directă ──────────────────────────
+  // ── CHUNK UNIC ───────────────────────────────────────────────
   if (chunks.length === 1) {
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -332,7 +343,6 @@ async function generateResponse(chatId, userText) {
 
     let result = await groqCall(messages);
 
-    // Fallback OpenRouter
     if (!result.ok) {
       if (result.text === 'TOKEN_LIMIT') {
         return '⚠️ Context depășit. Scrie /reset și retrimite.';
@@ -357,11 +367,10 @@ async function generateResponse(chatId, userText) {
     if (result.text.includes('```') && process.env.GITHUB_TOKEN) {
       const m = result.text.match(/```(\w+)?\n([\s\S]+?)```/);
       if (m) {
-        const lang = m[1] || 'txt';
         saveToGithub(
-          `nexus_generated/${Date.now()}.${lang}`,
+          `nexus_generated/${Date.now()}.${m[1] || 'txt'}`,
           m[2],
-          `Nexus auto: ${lang}`
+          `Nexus auto: ${m[1] || 'txt'}`
         ).catch(() => {});
       }
     }
@@ -369,22 +378,19 @@ async function generateResponse(chatId, userText) {
     return result.text;
   }
 
-  // ── MULTI-CHUNK - procesare pe bucăți ───────────────────────
+  // ── MULTI-CHUNK ──────────────────────────────────────────────
   console.log(`📦 ${chunks.length} chunks pentru chatId ${chatId}`);
   const partialResults = [];
 
   for (let i = 0; i < chunks.length; i++) {
     const isLast = i === chunks.length - 1;
 
-    let instruction = '';
-    if (!isLast) {
-      instruction = `\n\n[PARTE ${i + 1}/${chunks.length}: Analizează doar această secțiune. Nu da răspuns final încă.]`;
-    } else {
-      instruction = `\n\n[PARTE FINALĂ ${i + 1}/${chunks.length}: Sintetizează tot și dă răspunsul complet.` +
+    const instruction = !isLast
+      ? `\n\n[PARTE ${i + 1}/${chunks.length}: Analizează doar această secțiune. Nu da răspuns final încă.]`
+      : `\n\n[PARTE FINALĂ ${i + 1}/${chunks.length}: Sintetizează tot și dă răspunsul complet.` +
         (partialResults.length > 0
-          ? ` Context din analiza anterioară: ${partialResults.join(' | ').substring(0, 400)}]`
+          ? ` Context anterior: ${partialResults.join(' | ').substring(0, 400)}]`
           : ']');
-    }
 
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -394,18 +400,14 @@ async function generateResponse(chatId, userText) {
 
     let result = await groqCall(messages);
 
-    if (!result.ok) {
-      if (process.env.OPENROUTER_KEY) {
-        const fallback = await callOpenRouter(messages);
-        result = fallback
-          ? { ok: true, text: fallback }
-          : { ok: false, text: `[Eroare chunk ${i + 1}]` };
-      }
+    if (!result.ok && process.env.OPENROUTER_KEY) {
+      const fallback = await callOpenRouter(messages);
+      result = fallback
+        ? { ok: true, text: fallback }
+        : { ok: false, text: `[Eroare chunk ${i + 1}]` };
     }
 
     partialResults.push(result.text);
-
-    // Pauză între chunk-uri - protecție rate limit
     if (!isLast) await new Promise(r => setTimeout(r, 2000));
   }
 
@@ -415,7 +417,6 @@ async function generateResponse(chatId, userText) {
     await Msg.create({ chatId, role: 'assistant', content: finalReply.substring(0, 5000) });
   }
 
-  // Auto-save cod
   if (finalReply.includes('```') && process.env.GITHUB_TOKEN) {
     const m = finalReply.match(/```(\w+)?\n([\s\S]+?)```/);
     if (m) {
@@ -431,6 +432,65 @@ async function generateResponse(chatId, userText) {
 }
 
 // ============================================================
+// EXPRESS - Upload fișiere fără RAM bloat
+// ============================================================
+app.post('/upload', (req, res) => {
+  if (!req.headers['content-type']?.includes('multipart/form-data')) {
+    return res.status(400).send('Content-Type trebuie să fie multipart/form-data');
+  }
+
+  const bb = busboy({
+    headers: req.headers,
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB max - protecție RAM
+  });
+
+  let uploadedFiles = 0;
+  let hasError      = false;
+
+  // busboy v1.x - filename vine în obiectul info
+  bb.on('file', (fieldname, file, info) => {
+    const { filename } = info;
+
+    // Sanitizare nume - previne path traversal
+    const safeName    = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+    const filePath    = path.join(UPLOAD_DIR, safeName);
+    const writeStream = fs.createWriteStream(filePath);
+
+    file.on('limit', () => {
+      hasError = true;
+      fs.unlink(filePath, () => {});
+      if (!res.headersSent) res.status(413).send('Fișier prea mare. Limită: 10MB');
+    });
+
+    pipeline(file, writeStream, (err) => {
+      if (err && !hasError) {
+        hasError = true;
+        console.error('Pipeline eroare:', err.message);
+        if (!res.headersSent) res.status(500).send('Eroare upload: ' + err.message);
+      } else if (!hasError) {
+        uploadedFiles++;
+      }
+    });
+  });
+
+  bb.on('finish', () => {
+    if (!hasError && !res.headersSent) {
+      res.send(`✅ ${uploadedFiles} fișier(e) uploadat(e).`);
+    }
+  });
+
+  bb.on('error', (err) => {
+    console.error('Busboy eroare:', err.message);
+    if (!res.headersSent) res.status(500).send('Eroare procesare upload.');
+  });
+
+  req.pipe(bb);
+});
+
+// Health check
+app.get('/', (req, res) => res.send('NEXUS v4 Active'));
+
+// ============================================================
 // COMENZI BOT
 // ============================================================
 bot.onText(/\/start/, async (msg) => {
@@ -444,12 +504,12 @@ bot.onText(/\/start/, async (msg) => {
 });
 
 bot.onText(/\/status/, async (msg) => {
-  const heap  = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
-  const dbOk  = mongoose.connection.readyState === 1 ? '✅' : '❌';
-  const orOk  = process.env.OPENROUTER_KEY  ? '✅' : '❌';
-  const ghOk  = process.env.GITHUB_TOKEN    ? '✅' : '❌';
-  const wOk   = (process.env.WEATHER_API_KEY || process.env.API_KEY) ? '✅' : '❌';
-  let kCount  = 0;
+  const heap = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1);
+  const dbOk = mongoose.connection.readyState === 1 ? '✅' : '❌';
+  const orOk = process.env.OPENROUTER_KEY  ? '✅' : '❌';
+  const ghOk = process.env.GITHUB_TOKEN    ? '✅' : '❌';
+  const wOk  = (process.env.WEATHER_API_KEY || process.env.API_KEY) ? '✅' : '❌';
+  let kCount = 0;
   if (mongoose.connection.readyState === 1) kCount = await Knowledge.countDocuments();
 
   await bot.sendMessage(
@@ -488,7 +548,7 @@ bot.onText(/\/learn (.+)\|(.+)/, async (msg, match) => {
 });
 
 // ============================================================
-// HANDLER PRINCIPAL
+// HANDLER PRINCIPAL TELEGRAM
 // ============================================================
 bot.on('message', async (msg) => {
   if (!msg.text || msg.text.startsWith('/')) return;
@@ -511,7 +571,6 @@ bot.on('message', async (msg) => {
   try {
     await bot.sendChatAction(chatId, 'typing');
 
-    // Avertizare text lung
     if (msg.text.length > CHUNK_MAX_CHARS) {
       const n = Math.ceil(msg.text.length / CHUNK_MAX_CHARS);
       await bot.sendMessage(
@@ -540,17 +599,14 @@ bot.on('message', async (msg) => {
 });
 
 // ============================================================
-// SERVER HTTP + SELF-PING anti-sleep Render Free
+// SERVER EXPRESS + SELF-PING anti-sleep Render Free
 // ============================================================
 const PORT    = process.env.PORT || 10000;
 const APP_URL = process.env.RENDER_EXTERNAL_URL;
 
-http.createServer((req, res) => {
-  res.writeHead(200);
-  res.end('NEXUS v4 Active');
-}).listen(PORT, () => console.log(`🌐 Port ${PORT} activ`));
+app.listen(PORT, () => console.log(`🌐 NEXUS v4 pe portul ${PORT}`));
 
-// Self-ping la 14 minute - previne spin-down
+// Self-ping la 14 minute - previne spin-down Render Free
 if (APP_URL) {
   setInterval(() => {
     const url = APP_URL.startsWith('https://') ? APP_URL : `https://${APP_URL}`;
