@@ -1,0 +1,16 @@
+import requests
+
+def get_weather(city):
+    api_key = "tău_api_key"
+    base_url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}"
+    response = requests.get(base_url)
+    if response.status_code == 200:
+        data = response.json()
+        temperatura = data["main"]["temp"] - 273.15
+        umiditate = data["main"]["humidity"]
+        return f"În {city}, temperatura este de {temperatura}°C și umiditatea este de {umiditate}%"
+    else:
+        return "Eroare la cerere"
+
+city = "Vaslui"
+print(get_weather(city))
