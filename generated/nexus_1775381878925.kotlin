@@ -1,0 +1,49 @@
+class LogViewModel(private val repository: Repository) : ViewModel() {
+
+    val logsState: StateFlow<List<LogEntity>> = repository.getLogsFlow()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList(),
+            bufferSize = 1
+        )
+
+    private val logWebSocketListener = LogWebSocketListener(repository)
+
+    init {
+        WebSocket.connect("ws://server-log-uri.com/logs") {
+            it.onMessage { message ->
+                val logEntity = LogEntity(message)
+                repository.saveLog(logEntity)
+            }
+            it.onError { error ->
+                // În caz de eroare, încercăm să reconectăm automat
+                reconectareAutomata()
+            }
+            it.onClose { reason ->
+                // În caz de închidere, încercăm să reconectăm automat
+                reconectareAutomata()
+            }
+        }
+    }
+
+    private fun reconectareAutomata() {
+        viewModelScope.launch {
+            delay(5000) // Așteptăm 5 secunde
+            WebSocket.connect("ws://server-log-uri.com/logs") {
+                it.onMessage { message ->
+                    val logEntity = LogEntity(message)
+                    repository.saveLog(logEntity)
+                }
+                it.onError { error ->
+                    // În caz de eroare, continuăm să încercăm să reconectăm
+                    reconectareAutomata()
+                }
+                it.onClose { reason ->
+                    // În caz de închidere, continuăm să încercăm să reconectăm
+                    reconectareAutomata()
+                }
+            }
+        }
+    }
+}
