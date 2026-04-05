@@ -1,0 +1,20 @@
+private const val MAX_BACKOFF_TIME = 30_000L
+
+private fun connectToWebSocket() {
+    viewModelScope.launch {
+        // Exponential Backoff: Așteptăm progresiv (2s, 4s, 8s...)
+        val delayTime = (2.0.pow(retryCount.toDouble()) * 1000).toLong().coerceAtMost(MAX_BACKOFF_TIME)
+        if (retryCount > 0) delay(delayTime)
+
+        webSocket = repository.startSocketConnection(object : WebSocketListener() {
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                retryCount = 0 // Resetăm contorul la succes
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                retryCount++
+                connectToWebSocket() // Reîncercăm inteligent
+            }
+        })
+    }
+}
