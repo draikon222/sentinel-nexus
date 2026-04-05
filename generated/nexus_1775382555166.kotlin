@@ -1,0 +1,7 @@
+import org.gradle.api.tasks.TaskExecutionException
+
+fun verificaApiKey(): Unit {
+    if (BuildConfig.API_KEY.isEmpty()) {
+        throw TaskExecutionException("API_KEY este gol")
+    }
+}
