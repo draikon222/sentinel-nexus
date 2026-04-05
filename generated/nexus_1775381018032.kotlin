@@ -1,0 +1,22 @@
+class LogViewModel(private val repository: LogRepository) : ViewModel() {
+
+    private val _logs = MutableLiveData<List<LogEntry>>()
+    val logs: LiveData<List<LogEntry>> = _logs
+
+    private val _updateInterval = MutableLiveData<Int>()
+    val updateInterval: LiveData<Int> = _updateInterval
+
+    fun getLogs() {
+        repository.getLogs().observeForever { logs ->
+            _logs.value = logs
+        }
+    }
+
+    fun startUpdate() {
+        _updateInterval.value = 1000 // 1 secundă
+    }
+
+    fun stopUpdate() {
+        _updateInterval.value = 0
+    }
+}
