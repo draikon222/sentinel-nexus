@@ -1,0 +1,46 @@
+import android.os.Handler
+import android.os.Looper
+
+class LogAdapter(private val viewModel: LogViewModel) : ListAdapter<LogEntry, LogViewHolder>(DiffCallback()) {
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var updateInterval = 1000 // 1 secundă
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LogViewHolder {
+        val binding = LogItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return LogViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: LogViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class LogViewHolder(private val binding: LogItemBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(log: LogEntry) {
+            binding.logDate.text = log.date
+            binding.logEvent.text = log.event
+            binding.logStatus.text = log.status
+        }
+    }
+
+    private class DiffCallback : DiffUtil.ItemCallback<LogEntry>() {
+        override fun areItemsTheSame(oldItem: LogEntry, newItem: LogEntry): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: LogEntry, newItem: LogEntry): Boolean {
+            return oldItem == newItem
+        }
+    }
+
+    fun startUpdate() {
+        handler.postDelayed({
+            viewModel.getLogs()
+            startUpdate()
+        }, updateInterval)
+    }
+
+    fun stopUpdate() {
+        handler.removeCallbacksAndMessages(null)
+    }
+}
