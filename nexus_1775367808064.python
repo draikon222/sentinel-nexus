@@ -1,0 +1,21 @@
+import requests
+
+def get_vremea():
+    api_key = "TREBUIE SA-MI SPUNI API-UL TA PERSONAL"
+    ora_actuala = "2024-03-20 14:00:00"  # Trebuie să-mi spui ora actuală
+    localitate = "Vaslui"
+    cod_postal = "7400"
+
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={localitate},{cod_postal}&appid={api_key}&units=metric"
+
+    raspuns = requests.get(url)
+
+    if raspuns.status_code == 200:
+        vremea = raspuns.json()
+        print(f"Vremea în {localitate} este: {vremea['weather'][0]['description']}")
+        print(f"Temperatura este: {vremea['main']['temp']}°C")
+        print(f"Umiditatea este: {vremea['main']['humidity']}%")
+    else:
+        print("Eroare la cererea API-ului")
+
+get_vremea()
