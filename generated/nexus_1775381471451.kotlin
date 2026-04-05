@@ -1,0 +1,90 @@
+// Network Module
+interface GitHubApi {
+    @POST("repos/{owner}/{repo}/hooks")
+    suspend fun createWebhook(@Path("owner") owner: String, @Path("repo") repo: String, @Body webhook: Webhook): Response<Webhook>
+
+    @GET("repos/{owner}/{repo}/hooks")
+    suspend fun getWebhook(@Path("owner") owner: String, @Path("repo") repo: String): Response<List<Webhook>>
+}
+
+class GitHubApiImpl @Inject constructor(private val retrofit: Retrofit) : GitHubApi {
+    override suspend fun createWebhook(owner: String, repo: String, webhook: Webhook): Response<Webhook> {
+        return retrofit.create(GitHubApi::class.java).createWebhook(owner, repo, webhook)
+    }
+
+    override suspend fun getWebhook(owner: String, repo: String): Response<List<Webhook>> {
+        return retrofit.create(GitHubApi::class.java).getWebhook(owner, repo)
+    }
+}
+
+// WebSocket Module
+class WebSocketClient(private val url: String) {
+    private val socket = WebSocket(url)
+
+    suspend fun sendLog(log: LogEntity) {
+        socket.send(log.toString())
+    }
+
+    suspend fun close() {
+        socket.close()
+    }
+}
+
+// Repository
+class LogRepository(private val database: LogDatabase, private val api: GitHubApi, private val webSocketClient: WebSocketClient) {
+    suspend fun insertLog(log: LogEntity) {
+        database.logDao().insertLog(log)
+        sendLogToGitHub(log)
+        sendLogToWebSocket(log)
+    }
+
+    private suspend fun sendLogToGitHub(log: LogEntity) {
+        val webhook = Webhook(log)
+        val response = api.createWebhook("owner", "repo", webhook)
+        if (response.isSuccessful) {
+            Log.d("GitHub", "Webhook created successfully")
+        } else {
+            Log.e("GitHub", "Error creating webhook: ${response.code()}")
+        }
+    }
+
+    private suspend fun sendLogToWebSocket(log: LogEntity) {
+        webSocketClient.sendLog(log)
+    }
+}
+
+// ViewModel
+class LogViewModel(private val repository: LogRepository) : ViewModel() {
+    private val _logs = MutableStateFlow<List<LogEntity>>(emptyList())
+    val logs: StateFlow<List<LogEntity>> = _logs
+
+    fun getLogs() {
+        viewModelScope.launch {
+            repository.getAllLogs().collect { logs ->
+                _logs.value = logs
+            }
+        }
+    }
+
+    fun insertLog(log: LogEntity) {
+        viewModelScope.launch {
+            repository.insertLog(log)
+        }
+    }
+}
+
+// Activity
+class LogActivity : AppCompatActivity() {
+    private lateinit var viewModel: LogViewModel
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        viewModel = ViewModelProvider(this).get(LogViewModel::class.java)
+        viewModel.getLogs()
+        viewModel.logs.observe(this, Observer { logs ->
+            LogRecyclerViewAdapter(logs).also { adapter ->
+                recyclerView.adapter = adapter
+            }
+        })
+    }
+}
