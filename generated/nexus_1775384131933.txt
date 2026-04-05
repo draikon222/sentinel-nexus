@@ -1,0 +1,4 @@
+{
+  "tip": "EROARE",
+  "mesaj": "Comanda nu este tehnică și nu poate fi executată."
+}
