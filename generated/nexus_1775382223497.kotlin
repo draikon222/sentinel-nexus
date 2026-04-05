@@ -1,0 +1,18 @@
+import org.gradle.api.tasks.testing.Test
+
+plugins {
+    id("com.android.application")
+    id("kotlin-android")
+}
+
+android {
+    defaultConfig {
+        buildConfigField("String", "DATABASE_URL", "\"${localProperties.getProperty("DATABASE_URL")}\"")
+        buildConfigField("String", "API_KEY", "\"${localProperties.getProperty("API_KEY")}\"")
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.9.0")
+    implementation("androidx.appcompat:appcompat:1.4.1")
+}
