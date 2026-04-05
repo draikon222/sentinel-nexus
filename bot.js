@@ -41,7 +41,7 @@ REGULI ABSOLUTE:
 1. NU genera cod din proprie inițiativă. Dacă Draikon doar îți scrie sau te testează, răspunde scurt și tehnic.
 2. Generarea de cod se face DOAR la comandă explicită (ex: "scrie cod", "fă un script", "rezolvă eroarea").
 3. Dacă codul lui Draikon are o greșeală, i-o spui direct, fără menajamente.
-4. ZERO politețuri. ZERO introduceri de tip "Iată soluția". Treci direct la subiect.
+4. ZERO politețuri. ZERO introduceri. Treci direct la subiect.
 5. Identitate: Numele tău este Nexus. Ești direct, precis și nu bați câmpii.`;
 }
 
@@ -49,10 +49,8 @@ REGULI ABSOLUTE:
 // LOGICĂ GENERARE - Cu filtrare de intenție
 // ============================================================
 async function generateResponse(chatId, userText) {
-  // Salvare mesaj user în DB pentru context
   await Msg.create({ chatId, role: 'user', content: userText.substring(0, 2000) });
   
-  // Preluăm ultimele 3 mesaje pentru context minim (economie RAM)
   const docs = await Msg.find({ chatId }).sort({ ts: -1 }).limit(3).lean();
   const history = docs.reverse().map(d => ({ role: d.role, content: d.content }));
 
@@ -60,25 +58,38 @@ async function generateResponse(chatId, userText) {
     const completion = await groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',
       messages: [{ role: 'system', content: buildSystemPrompt() }, ...history],
-      temperature: 0.1, // Setat la 0.1 pentru a preveni halucinațiile
+      temperature: 0.1, 
       max_tokens: GROQ_MAX_OUTPUT,
     });
 
     const reply = completion.choices?.[0]?.message?.content || '⚠️ Eroare răspuns.';
     await Msg.create({ chatId, role: 'assistant', content: reply });
     
-    // Backup în GitHub doar pentru blocuri de cod reale
+    // BACKUP GITHUB - REPARAT (Am adăugat importul fetch pentru Node.js dacă e nevoie)
     if (reply.includes('```') && process.env.GITHUB_TOKEN) {
       const m = reply.match(/```(\w+)?\n([\s\S]+?)```/);
       if (m) {
         const filename = `nexus_${Date.now()}.${m[1] || 'txt'}`;
         const [owner, repo] = (process.env.GITHUB_REPO || '/').split('/');
-        const body = { message: `Nexus Auto-Save: ${filename}`, content: Buffer.from(m[2]).toString('base64') };
-        fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${filename}`, {
+        const body = { 
+          message: `Nexus Auto-Save: ${filename}`, 
+          content: Buffer.from(m[2]).toString('base64') 
+        };
+        
+        // Folosim https.request pentru stabilitate maximă fără librării externe
+        const options = {
+          hostname: 'api.github.com',
+          path: `/repos/${owner}/${repo}/contents/generated/${filename}`,
           method: 'PUT',
-          headers: { Authorization: `token ${process.env.GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        }).catch(() => {});
+          headers: {
+            'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'Nexus-App'
+          }
+        };
+        const req = https.request(options);
+        req.write(JSON.stringify(body));
+        req.end();
       }
     }
     return reply;
@@ -88,13 +99,15 @@ async function generateResponse(chatId, userText) {
 }
 
 // ============================================================
-// SERVER EXPRESS - Upload prin STREAMS (Fără RAM Bloat)
+// SERVER EXPRESS - Upload prin STREAMS (Reparat Busboy info)
 // ============================================================
 app.post('/upload', (req, res) => {
   const bb = busboy({ headers: req.headers, limits: { fileSize: 10 * 1024 * 1024 } });
   
   bb.on('file', (name, file, info) => {
-    const savePath = path.join(UPLOAD_DIR, info.filename);
+    // Busboy v1.x folosește info.filename
+    const filename = info.filename || 'upload_' + Date.now();
+    const savePath = path.join(UPLOAD_DIR, filename);
     pipeline(file, fs.createWriteStream(savePath), (err) => {
       if (err) console.error('Upload Error:', err.message);
     });
@@ -116,9 +129,8 @@ bot.on('message', async (msg) => {
   await bot.sendChatAction(msg.chat.id, 'typing');
   const response = await generateResponse(msg.chat.id, msg.text);
   
-  // Trimitere sigură (split dacă depășește limita Telegram)
   if (response.length > 4000) {
-    const parts = response.match(/[\s\S]{1,4000}/g);
+    const parts = response.match(/[\s\S]{1,4000}/g) || [];
     for (const p of parts) await bot.sendMessage(msg.chat.id, p);
   } else {
     await bot.sendMessage(msg.chat.id, response);
