@@ -1,0 +1,11 @@
+class LogViewModel(private val repository: LogRepository) : ViewModel() {
+    init {
+        require(BuildConfig.API_KEY.isNotBlank() && BuildConfig.API_KEY != "MISSING_KEY") {
+            "Configurație invalidă: API_KEY trebuie setat în local.properties!"
+        }
+        
+        require(repository != null) { "Repository este null!" }
+        
+        connectToWebSocket()
+    }
+}
