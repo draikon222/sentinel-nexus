@@ -1,0 +1,69 @@
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
+import androidx.recyclerview.widget.RecyclerView
+import com.example.logviewer.databinding.LogItemBinding
+
+class LogAdapter(private val viewModel: LogViewModel) : ListAdapter<LogEntry, LogViewHolder>(DiffCallback()) {
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LogViewHolder {
+        val binding = LogItemBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        return LogViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: LogViewHolder, position: Int) {
+        holder.bind(getItem(position))
+    }
+
+    inner class LogViewHolder(private val binding: LogItemBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(log: LogEntry) {
+            binding.logDate.text = log.date
+            binding.logEvent.text = log.event
+            binding.logStatus.text = log.status
+        }
+    }
+
+    private class DiffCallback : DiffUtil.ItemCallback<LogEntry>() {
+        override fun areItemsTheSame(oldItem: LogEntry, newItem: LogEntry): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: LogEntry, newItem: LogEntry): Boolean {
+            return oldItem == newItem
+        }
+    }
+}
+
+class LogViewModel(private val repository: LogRepository) : ViewModel() {
+    private val _logs = MutableLiveData<List<LogEntry>>()
+    val logs: LiveData<List<LogEntry>> = _logs
+
+    fun getLogs() {
+        viewModelScope.launch {
+            val logs = repository.getLogs()
+            _logs.value = logs
+        }
+    }
+
+    fun addLog(log: LogEntry) {
+        viewModelScope.launch {
+            repository.addLog(log)
+            _logs.value = _logs.value?.plus(log) ?: listOf(log)
+        }
+    }
+}
+
+class LogRepository(private val dao: LogDao) {
+    suspend fun getLogs(): List<LogEntry> {
+        return dao.getLogs()
+    }
+
+    suspend fun addLog(log: LogEntry) {
+        dao.addLog(log)
+    }
+}
+
+data class LogEntry(val id: Int, val date: String, val event: String, val status: String)
