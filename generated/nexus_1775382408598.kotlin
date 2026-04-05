@@ -1,0 +1,9 @@
+private const val MISSING_API_KEY_ERROR = "Configurează local.properties pe laptopul tău!"
+
+fun main() {
+    // ...
+    if (apiKey == "MISSING_KEY") {
+        error(MISSING_API_KEY_ERROR)
+    }
+    // ...
+}
