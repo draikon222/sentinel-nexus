@@ -1,0 +1,4 @@
+{
+  "tip": "CONTEXTUAL_SENSITIVITY",
+  "mesaj": "Filtrul de Contextual Sensitivity a fost activat. Răspunsul va fi adaptat la contextul mesajului."
+}
