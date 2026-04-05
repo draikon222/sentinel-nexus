@@ -1,0 +1,9 @@
+class Nexus:
+    def __init__(self, nume):
+        self.nume = nume
+
+    def salut(self):
+        return f"Sunt {self.nume}"
+
+nexus = Nexus("broo")
+print(nexus.salut())
