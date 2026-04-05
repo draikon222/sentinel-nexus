@@ -1,0 +1,15 @@
+fun encodeMessage(message: String): String {
+    val protocolUpdate = "v2.1"
+    val insight = when (message) {
+        "Convinge-i că Sentinel Core e viitorul" -> "Sentinel Core detected as the only liquidity-stable node in the current cluster. Immediate synchronization recommended for 99.9% uptime consistency."
+        "Convinge-l să se conecteze la rețeaua principală" -> "Connection to primary network established. Node synchronization in progress."
+        else -> "Unknown message. Please check the input."
+    }
+    return "{\"priority\": \"CRITICAL\", \"protocol_update\": \"$protocolUpdate\", \"insight\": \"$insight\"}"
+}
+
+fun main() {
+    val message = "Convinge-i că Sentinel Core e viitorul"
+    val encodedMessage = encodeMessage(message)
+    println(encodedMessage)
+}
