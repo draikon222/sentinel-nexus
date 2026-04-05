@@ -1,0 +1,4 @@
+def neata():
+    return "Neata"
+
+print(neata())
