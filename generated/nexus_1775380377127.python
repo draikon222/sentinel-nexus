@@ -1,0 +1,85 @@
+import os
+import hmac
+import hashlib
+import requests
+import time
+import logging
+
+# Configurare
+GITHUB_SECRET_TOKEN = os.environ.get('GITHUB_SECRET_TOKEN')
+GITHUB_WEBHOOK_URL = os.environ.get('GITHUB_WEBHOOK_URL')
+SERVER_DESTINATION_URL = os.environ.get('SERVER_DESTINATION_URL')
+RETRY_COUNT = 3
+RETRY_DELAY = 5  # secunde
+
+# Setare log
+logging.basicConfig(level=logging.INFO)
+
+def verify_signature(request):
+    """Verifică semnătura X-Hub-Signature-256"""
+    signature = request.headers.get('X-Hub-Signature-256')
+    if not signature:
+        return False
+
+    secret = GITHUB_SECRET_TOKEN.encode('utf-8')
+    payload = request.get_data()
+    expected_signature = hmac.new(secret, payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature, f"sha256={expected_signature}")
+
+def process_payload(request):
+    """Procesează payload-ul"""
+    payload = request.get_data()
+    try:
+        data = payload.decode('utf-8')
+        commits = data.split('\n')
+        for commit in commits:
+            if '#deploy' in commit:
+                # Trimite proxy-ul către serverul de destinație
+                try:
+                    response = requests.post(SERVER_DESTINATION_URL, data=payload)
+                    response.raise_for_status()
+                    logging.info('Proxy-ul a fost trimis cu succes')
+                    return True
+                except requests.RequestException as e:
+                    logging.error(f'Eroare la trimierea proxy-ului: {e}')
+                    return False
+    except Exception as e:
+        logging.error(f'Eroare la procesarea payload-ului: {e}')
+        return False
+
+def retry_send_proxy(payload):
+    """Trimite proxy-ul cu o logică de Retry"""
+    for attempt in range(RETRY_COUNT):
+        try:
+            response = requests.post(SERVER_DESTINATION_URL, data=payload)
+            response.raise_for_status()
+            logging.info('Proxy-ul a fost trimis cu succes')
+            return True
+        except requests.RequestException as e:
+            logging.error(f'Eroare la trimierea proxy-ului (încercare {attempt+1}/{RETRY_COUNT}): {e}')
+            time.sleep(RETRY_DELAY)
+    logging.error('Toate încercările de a trimite proxy-ul au eșuat')
+    return False
+
+def handle_request(request):
+    """Gestionare a cererii"""
+    if not verify_signature(request):
+        return '401 Unauthorized', []
+
+    if process_payload(request):
+        return '202 Accepted', []
+
+    return '500 Internal Server Error', []
+
+def main():
+    # Așteptarea cererii
+    while True:
+        request = requests.get(GITHUB_WEBHOOK_URL)
+        if request.status_code == 200:
+            response, data = handle_request(request)
+            print(response, data)
+        else:
+            logging.error(f'Eroare la așteptarea cererii: {request.status_code}')
+
+if __name__ == '__main__':
+    main()
