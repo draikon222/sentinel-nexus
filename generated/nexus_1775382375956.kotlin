@@ -1,0 +1,13 @@
+// local.properties (pe laptop)
+API_KEY=1234567890
+
+// build.gradle.kts (pe laptop)
+plugins {
+    id("com.android.application")
+}
+
+android {
+    defaultConfig {
+        buildConfigField("String", "API_KEY", "\"${System.getProperty("API_KEY")}\"")
+    }
+}
