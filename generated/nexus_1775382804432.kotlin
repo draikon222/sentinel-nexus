@@ -1,0 +1,15 @@
+class LogViewModel @Inject constructor(
+    private val repository: LogRepository
+) : ViewModel() {
+
+    init {
+        // Singura verificare critică: Configurația externă
+        require(BuildConfig.API_KEY.isNotBlank() && BuildConfig.API_KEY != "MISSING_KEY") {
+            "CRITICAL: API_KEY lipsește! Verifică local.properties pe laptop."
+        }
+        
+        connectToWebSocket()
+    }
+    
+    // ... restul logicii de reconectare cu Exponential Backoff
+}
