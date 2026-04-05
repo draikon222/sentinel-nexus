@@ -1,0 +1,7 @@
+val logsState: StateFlow<List<LogEntity>> = repository.getLogsFlow()
+    .stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000), // Se oprește după 5 secunde de inactivitate
+        initialValue = emptyList(),
+        bufferSize = 1 // Stocăm doar ultimul element
+    )
