@@ -1,0 +1,5 @@
+fun verificaApiKey(): Unit {
+    if (BuildConfig.API_KEY.isEmpty()) {
+        throw IllegalArgumentException("API_KEY este gol")
+    }
+}
