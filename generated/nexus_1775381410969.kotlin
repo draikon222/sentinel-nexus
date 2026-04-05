@@ -1,0 +1,14 @@
+@Entity(tableName = "logs")
+data class LogEntry(
+    @PrimaryKey(autoGenerate = true)
+    val id: Int,
+
+    @ColumnInfo(name = "date")
+    val date: String,
+
+    @ColumnInfo(name = "event")
+    val event: String,
+
+    @ColumnInfo(name = "status")
+    val status: String
+)
