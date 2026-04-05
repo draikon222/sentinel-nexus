@@ -1,0 +1,32 @@
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) load(file.inputStream())
+}
+
+android {
+    defaultConfig {
+        buildConfigField("String", "API_KEY", "\"${localProperties.getProperty("API_KEY")}\"")
+    }
+}
+
+// Nu folosi buildConfigField pentru API_KEY, ci folosește o variabilă de configurație
+android {
+    defaultConfig {
+        buildConfigField("String", "API_KEY_SOURCE", "\"${localProperties.getProperty("API_KEY")}\"")
+    }
+}
+
+// Folosește o funcție pentru a obține API_KEY
+fun getApiKey(): String {
+    val localProperties = Properties().apply {
+        val file = rootProject.file("local.properties")
+        if (file.exists()) load(file.inputStream())
+    }
+    return localProperties.getProperty("API_KEY") ?: ""
+}
+
+// Folosește API_KEY în cod
+fun main() {
+    val apiKey = getApiKey()
+    // Utilizează API_KEY în cod
+}
