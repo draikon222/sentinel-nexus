@@ -1,0 +1,11 @@
+@Dao
+interface LogDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertLog(log: LogEntity)
+
+    @Query("SELECT * FROM logs ORDER BY id DESC")
+    fun getLatestLogs(): Flow<List<LogEntity>>
+
+    @Query("DELETE FROM logs WHERE id IN (SELECT id FROM logs ORDER BY id ASC LIMIT :limit)")
+    suspend fun deleteOldLogs(limit: Int)
+}
