@@ -1,0 +1,7 @@
+@Entity(tableName = "logs")
+data class LogEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val timestamp: Long,
+    val event: String,
+    val status: String
+)
