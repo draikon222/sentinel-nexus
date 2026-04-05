@@ -1,0 +1,90 @@
+import android.os.Bundle
+import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import io.socket.client.IO
+import io.socket.client.Socket
+import io.socket.emitter.Emitter
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var viewModel: MainViewModel
+    private lateinit var socket: Socket
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
+
+        // Creăm o conexiune la serverul WebSocket
+        val options = IO.Options()
+        options.forceNew = true
+        socket = IO.socket("http://localhost:8080", options)
+
+        // Conectăm la server
+        socket.connect()
+
+        // Când utilizatorul se uită la ecran
+        viewModel.stateFlow.collect { state ->
+            when (state) {
+                is StateFlow.State.Connecting -> {
+                    // Începem procesul de conectare
+                    viewModelScope.launch {
+                        delay(1000) // Așteptăm o secundă
+                        socket.emit("connect")
+                    }
+                }
+                is StateFlow.State.Connected -> {
+                    // Suntem conectați, putem trimite și primi mesaje
+                    socket.on("message", Emitter.Listener { args ->
+                        val message = args[0] as String
+                        Log.d("MainActivity", "Primit mesaj: $message")
+                        // Actualizăm UI-ul cu noua informație
+                        viewModel.updateUI(message)
+                    })
+                }
+                is StateFlow.State.Disconnecting -> {
+                    // Dezconectăm de la server
+                    socket.disconnect()
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        // Dezconectăm de la server
+        socket.disconnect()
+    }
+}
+
+class MainViewModel : ViewModel() {
+
+    private val _state = MutableStateFlow(StateFlow.State.Idle)
+    val stateFlow: StateFlow<StateFlow.State> = _state
+
+    fun updateUI(message: String) {
+        // Actualizăm UI-ul cu noua informație
+        // Aici puteți adăuga cod pentru a actualiza UI-ul
+    }
+
+    fun connect() {
+        _state.value = StateFlow.State.Connecting
+    }
+
+    fun disconnect() {
+        _state.value = StateFlow.State.Disconnecting
+    }
+}
+
+enum class StateFlow.State {
+    Idle,
+    Connecting,
+    Connected,
+    Disconnecting
+}
