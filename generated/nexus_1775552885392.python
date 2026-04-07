@@ -1,0 +1,18 @@
+import hmac
+import hashlib
+import secrets
+
+def generate_server_seed():
+    return secrets.token_bytes(32)
+
+def generate_public_client_seed():
+    return secrets.token_bytes(32)
+
+def generate_nonce():
+    return secrets.token_bytes(32)
+
+def extract_winner(server_seed, public_client_seed, nonce, total_tickets):
+    combined_seeds = server_seed + public_client_seed + nonce
+    hmac_hash = hmac.new(combined_seeds, digestmod=hashlib.sha512).digest()
+    winner_index = int.from_bytes(hmac_hash, 'big') % total_tickets
+    return winner_index
