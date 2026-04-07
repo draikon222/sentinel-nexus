@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+        .container {
+            width: 80%;
+            margin: 40px auto;
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background-color: #333;
+            color: #fff;
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+        .content {
+            padding: 20px;
+        }
+        .footer {
+            background-color: #333;
+            color: #fff;
+            padding: 10px;
+            text-align: center;
+            border-top: 1px solid #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Dashboard</h1>
+        </div>
+        <div class="content">
+            <h2>Ultimele 10 bilete cumpărate:</h2>
+            <ul id="tickets-list"></ul>
+            <h2>Câștigătorul ultimei extrageri:</h2>
+            <p id="winner"></p>
+            <h2>Statusul boților:</h2>
+            <ul id="bots-status"></ul>
+            <h2>Monitorizare resurse:</h2>
+            <p id="ram"></p>
+            <p id="cpu"></p>
+        </div>
+        <div class="footer">
+            <p>&copy; 2023</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/socket.io@2.3.0/dist/socket.io.js"></script>
+    <script>
+        const socket = io();
+
+        // Obține ultimele 10 bilete cumpărate
+        socket.on('tickets', (tickets) => {
+            const list = document.getElementById('tickets-list');
+            list.innerHTML = '';
+            tickets.forEach((ticket) => {
+                const li = document.createElement('li');
+                li.textContent = `${ticket.user} - ${ticket.amount}`;
+                list.appendChild(li);
+            });
+        });
+
+        // Obține câștigătorul ultimei extrageri
+        socket.on('winner', (winner) => {
+            const p = document.getElementById('winner');
+            p.textContent = winner;
+        });
+
+        // Obține statusul boților
+        socket.on('bots-status', (bots) => {
+            const list = document.getElementById('bots-status');
+            list.innerHTML = '';
+            bots.forEach((bot) => {
+                const li = document.createElement('li');
+                li.textContent = `${bot.username} - ${bot.status}`;
+                list.appendChild(li);
+            });
+        });
+
+        // Obține monitorizarea resurselor
+        socket.on('resources', (resources) => {
+            const ram = document.getElementById('ram');
+            const cpu = document.getElementById('cpu');
+            ram.textContent = `RAM: ${resources.ram}%`;
+            cpu.textContent = `CPU: ${resources.cpu}%`;
+        });
+
+        // Conectare la server
+        socket.connect();
+    </script>
+</body>
+</html>
