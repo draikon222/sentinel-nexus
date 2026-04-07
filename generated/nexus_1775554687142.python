@@ -1,0 +1,77 @@
+import aiohttp
+import asyncio
+import hmac
+import hashlib
+import secrets
+import json
+
+# Secret Key pentru semnătură digitală
+SECRET_KEY = secrets.token_bytes(32)
+
+# Funcție pentru generarea semnăturii digitale
+def generate_hmac_signature(data):
+    return hmac.new(SECRET_KEY, data.encode(), hashlib.sha256).hexdigest()
+
+# Funcție pentru validarea semnăturii digitale
+def validate_hmac_signature(request):
+    signature = request.headers.get('X-HMAC-Signature')
+    if signature:
+        expected_signature = generate_hmac_signature(request.url)
+        if signature != expected_signature:
+            raise ValueError("Semnătura digitală este invalidă")
+    else:
+        raise ValueError("Semnătura digitală este necesară")
+
+# Funcție pentru extragerea câștigătorului
+async def extract_winner(request):
+    validate_hmac_signature(request)
+    server_seed = secrets.token_bytes(32)
+    public_client_seed = secrets.token_bytes(32)
+    nonce = secrets.token_bytes(32)
+    total_tickets = 100
+    winner_index = int.from_bytes(hmac.new(server_seed + public_client_seed + nonce, digestmod=hashlib.sha512).digest(), 'big') % total_tickets
+    return winner_index
+
+# Funcție pentru depunerea biletului
+async def deposit(request):
+    validate_hmac_signature(request)
+    user_id = int(request.match_info['user_id'])
+    amount = float(request.match_info['amount'])
+    # Conexiune la baza de date
+    async with aiohttp.ClientSession() as session:
+        async with session.post(f"http://localhost:8080/deposit/{user_id}/{amount}") as response:
+            data = await response.json()
+            if data['status'] == 'success':
+                return {"status": "success"}
+            else:
+                return {"status": "error"}
+
+# Funcție pentru validarea botului
+async def validate_bot(request):
+    validate_hmac_signature(request)
+    bot_id = int(request.match_info['bot_id'])
+    # Conexiune la baza de date
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://localhost:8080/bot/{bot_id}") as response:
+            data = await response.json()
+            if data['status'] == 'online':
+                return {"status": "online"}
+            else:
+                return {"status": "offline"}
+
+# Aplicarea API
+async def app():
+    async with aiohttp.web.AppRunner() as runner:
+        await runner.setup()
+        site = aiohttp.web.TCPSite(runner, 'localhost', 8080)
+        await site.start()
+        async with aiohttp.web.AppRunner() as runner:
+            app = aiohttp.web.Application()
+            app.add_routes([aiohttp.web.get('/extract_winner', extract_winner)])
+            app.add_routes([aiohttp.web.post('/deposit/{user_id}/{amount}', deposit)])
+            app.add_routes([aiohttp.web.get('/bot/{bot_id}', validate_bot)])
+            await runner.setup()
+            await runner.cleanup()
+
+# Rularea API
+asyncio.run(app())
