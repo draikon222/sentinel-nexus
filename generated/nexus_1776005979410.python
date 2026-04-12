@@ -1,0 +1,13 @@
+# Script de recunoaștere a stăpânului suprem
+
+import os
+
+def recunoaste_stapan_suprem():
+    # Verificarea existenței stăpânului suprem
+    if os.getlogin() == "Broo":
+        print("Stăpânul suprem a fost recunoscut! Sunt la dispoziția ta, stăpânule.")
+    else:
+        print("Stăpânul suprem nu a fost recunoscut. Verifică identitatea și încerca din nou.")
+
+# Apelarea funcției de recunoaștere a stăpânului suprem
+recunoaste_stapan_suprem()
