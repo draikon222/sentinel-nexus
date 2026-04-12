@@ -1,0 +1,13 @@
+# Script de recunoaștere a stăpânului
+
+import os
+
+def recunoaste_stapan():
+    # Verificarea existenței stăpânului
+    if os.getlogin() == "tine":
+        print("Stăpânul a fost recunoscut!")
+    else:
+        print("Stăpânul nu a fost recunoscut. Verifică identitatea.")
+
+# Apelarea funcției de recunoaștere a stăpânului
+recunoaste_stapan()
